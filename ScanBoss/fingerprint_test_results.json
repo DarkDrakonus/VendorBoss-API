@@ -1,0 +1,162 @@
+[
+  {
+    "filename": "27-001R_eg.jpg",
+    "fingerprint_hash": "f9c7e6e64c5db2205ee2a34bed6e3dfab9b260e7bd37afb124dcea3ef87d7baa",
+    "components": {
+      "border": "80bf26d568fe9f7a",
+      "name_region": "88089d1b966aeca5",
+      "color_zones": "ae2e07f10fc6ba81",
+      "texture": "d567d1e502793d14",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "d2cad7c35bfde34e",
+      "quadrant_0_1": "75fe8c2c8a60163b",
+      "quadrant_0_2": "665bd8abfa2d6179",
+      "quadrant_1_0": "4c8a0c38a761d85e",
+      "quadrant_1_1": "5a8ea147dba4952e",
+      "quadrant_1_2": "fc2669cb7d2543c8",
+      "quadrant_2_0": "ad0b77f1d28e1810",
+      "quadrant_2_1": "8a6770b8e9c888f7",
+      "quadrant_2_2": "7ace2852fa400594"
+    }
+  },
+  {
+    "filename": "27-044L_eg.jpg",
+    "fingerprint_hash": "a7e4c9882be4cb51a8e41e6988be3b728e24c73149adc358520ca101d8d95e56",
+    "components": {
+      "border": "16db7abaa9d41ccb",
+      "name_region": "59de16a1cd2bf475",
+      "color_zones": "f0f2939acf106ee8",
+      "texture": "0c5ed4d280aa0f5b",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "9f8f209f94fc9958",
+      "quadrant_0_1": "e75aebc89286bb6e",
+      "quadrant_0_2": "13c315825ff0d726",
+      "quadrant_1_0": "d8dcc9c8d720cb10",
+      "quadrant_1_1": "1a090207ea2f84b3",
+      "quadrant_1_2": "7403f2b1971081bd",
+      "quadrant_2_0": "1111a4792f7f33c5",
+      "quadrant_2_1": "ccaa6e49ded225de",
+      "quadrant_2_2": "f3c6f902e0a66082"
+    }
+  },
+  {
+    "filename": "27-002H_eg.jpg",
+    "fingerprint_hash": "008e3513c9784181c842f2056830770a2b0a3924e65e5472e0542148d7e784dc",
+    "components": {
+      "border": "b403fbc7a2278627",
+      "name_region": "65bdd22aba09d514",
+      "color_zones": "0d81b92267ef9aa5",
+      "texture": "c20179fc2c1cbfd8",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "c1439d09efe6b3f6",
+      "quadrant_0_1": "82209fdd12282e93",
+      "quadrant_0_2": "56cc13f1ce02495f",
+      "quadrant_1_0": "b4b75ab8e8d9a133",
+      "quadrant_1_1": "3fff5056ca082bc6",
+      "quadrant_1_2": "6c1d95225f2f9a33",
+      "quadrant_2_0": "3e26bd5a70e82b9f",
+      "quadrant_2_1": "96b418da0ed0a805",
+      "quadrant_2_2": "151b5e9fa8de7667"
+    }
+  },
+  {
+    "filename": "27-038C_eg.jpg",
+    "fingerprint_hash": "76660b412b40b3fb1f372de8f271b3a9c6fdb57aeb21fc0bcd6ba7919c92d14c",
+    "components": {
+      "border": "3dfcaeb941c52730",
+      "name_region": "8a926e1ee846ca13",
+      "color_zones": "4f69e1d9b00e9f59",
+      "texture": "fd9788b2bb5078c0",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "73a80b28c9238377",
+      "quadrant_0_1": "d4f211a4fd6aa9fa",
+      "quadrant_0_2": "bbf2453bc1c094fe",
+      "quadrant_1_0": "915364f679842c51",
+      "quadrant_1_1": "8d446c9901d25503",
+      "quadrant_1_2": "44fb3b910e27545c",
+      "quadrant_2_0": "0dd5ac47b186c0b3",
+      "quadrant_2_1": "c049531a611176af",
+      "quadrant_2_2": "d8b77d4b7c4aa034"
+    }
+  },
+  {
+    "filename": "27-043C_eg.jpg",
+    "fingerprint_hash": "937617906c61230377dac62ebbb5fed5cd8278884201a307b7d5428dc746ceee",
+    "components": {
+      "border": "047e4e94c587713a",
+      "name_region": "5d54cc80b57bf238",
+      "color_zones": "6918e718a7fd9c34",
+      "texture": "1b95283affe5ca3b",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "0b7b12b0e1d9e96e",
+      "quadrant_0_1": "ca31f2bf480dfb2a",
+      "quadrant_0_2": "0c33f74937136613",
+      "quadrant_1_0": "c15c958bd8fd7297",
+      "quadrant_1_1": "9425130d2e54dc10",
+      "quadrant_1_2": "4e6115ec02814259",
+      "quadrant_2_0": "99d02b420fc47a0a",
+      "quadrant_2_1": "50ca295927b406df",
+      "quadrant_2_2": "0ac26fb42dd4acd9"
+    }
+  },
+  {
+    "filename": "27-020R_eg.jpg",
+    "fingerprint_hash": "15db36efd94432aab4e3a925491399a969033894aba4c45c6be73395b8ea1734",
+    "components": {
+      "border": "79a6289305f625b6",
+      "name_region": "19ddfdb4dff569d6",
+      "color_zones": "daf79a48ff23b43a",
+      "texture": "5ef2147d0c6de9a7",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "f97577c890974e24",
+      "quadrant_0_1": "19cbc10f8657ddca",
+      "quadrant_0_2": "055842b839444b65",
+      "quadrant_1_0": "078b26c25ee1a050",
+      "quadrant_1_1": "8a2b17a655a4ded6",
+      "quadrant_1_2": "d8d5c2b556465499",
+      "quadrant_2_0": "8b25d17ae3cb47ec",
+      "quadrant_2_1": "36d44e14eadb51fe",
+      "quadrant_2_2": "17d022f9acb5cce5"
+    }
+  },
+  {
+    "filename": "27-020R_eg_FL.jpg",
+    "fingerprint_hash": "d147cfdd748bf9e8ff95574bb6245f1b54921e97924d28188be1ea3eba67495a",
+    "components": {
+      "border": "b62255797e991a88",
+      "name_region": "27dd313ef1aac607",
+      "color_zones": "66b32c7500eb1d41",
+      "texture": "b26047852661dcbf",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "bbe70a6bcbd37105",
+      "quadrant_0_1": "b52e2f04f02e3f26",
+      "quadrant_0_2": "108d216c514c183a",
+      "quadrant_1_0": "b7d0317e5aebc8fb",
+      "quadrant_1_1": "c1d5cccd7d96e2f1",
+      "quadrant_1_2": "b30633ff006ebfa9",
+      "quadrant_2_0": "b16ea07bf5b40d09",
+      "quadrant_2_1": "f2a7419ff902a2b6",
+      "quadrant_2_2": "f943fcfea78d72d5"
+    }
+  },
+  {
+    "filename": "27-002H_eg_FL.jpg",
+    "fingerprint_hash": "c155ad79a8c33255bde16912cc44d940c9652784c7439f51301dd2e85cec407b",
+    "components": {
+      "border": "e7f5f2745590c62c",
+      "name_region": "857b49a73d1158b6",
+      "color_zones": "4f66a6200dfe2083",
+      "texture": "7712eb3e3013696a",
+      "layout": "8d79cbc9a4ecdde1",
+      "quadrant_0_0": "5597dedb3de06aa9",
+      "quadrant_0_1": "5b69e92c62c9d568",
+      "quadrant_0_2": "346ce1cb30198a2f",
+      "quadrant_1_0": "274f3cf91106a990",
+      "quadrant_1_1": "6767c65b42e314cd",
+      "quadrant_1_2": "3b65391cbe056825",
+      "quadrant_2_0": "ead21f10ed00d72c",
+      "quadrant_2_1": "9ef6b8b672b1c9ae",
+      "quadrant_2_2": "1d53f8dc45cb32b5"
+    }
+  }
+]
