@@ -141,6 +141,10 @@ class TcgDetail(Base):
     
     # Common fields
     text = Column(Text)
+    set_code = Column(String(20), index=True)
+    variant_type = Column(String(20), default='normal')
+    is_foil = Column(Boolean, default=False)
+    image_url = Column(Text)
     flavor_text = Column(Text)
     artist = Column(String)
     foil = Column(Boolean, default=False)
