@@ -28,12 +28,12 @@ pip install --quiet -r "$APP_DIR/requirements.txt"
 
 # ── 3. Restart the service ────────────────────────────────────────────────────
 echo "🔄 Restarting service..."
-sudo systemctl restart "$SERVICE"
+sudo -n systemctl restart "$SERVICE"
 
 # Confirm it came back up
 sleep 2
-sudo systemctl is-active --quiet "$SERVICE" \
+sudo -n systemctl is-active --quiet "$SERVICE" \
   && echo "✅ $SERVICE is running" \
-  || (echo "❌ $SERVICE failed to start" && sudo journalctl -u "$SERVICE" -n 30 --no-pager && exit 1)
+  || (echo "❌ $SERVICE failed to start" && sudo -n journalctl -u "$SERVICE" -n 30 --no-pager && exit 1)
 
 echo "✅ Deployment complete."
