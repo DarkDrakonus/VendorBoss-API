@@ -9,15 +9,15 @@ class ApiConfig {
 
   static const String baseUrl = _localUrl;
 
-  // Endpoints
+  // Endpoints — trailing slashes prevent 307 redirects which drop auth headers
   static const String login      = '/api/auth/login';
   static const String register   = '/api/auth/register';
   static const String me         = '/api/auth/me';
-  static const String inventory  = '/inventory';
-  static const String shows      = '/shows';
-  static const String sales      = '/sales';
-  static const String expenses   = '/expenses';
-  static const String reports    = '/reports';
-  static const String cards      = '/cards';
-  static const String scan       = '/scan';
+  static const String inventory  = '/inventory/';
+  static const String shows      = '/shows/';
+  static const String sales      = '/sales/';
+  static const String expenses   = '/expenses/';
+  static const String reports    = '/reports/';
+  static const String cards      = '/cards/';
+  static const String scan       = '/scan/';
 }
