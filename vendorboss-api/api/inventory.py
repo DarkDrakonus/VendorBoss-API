@@ -120,11 +120,16 @@ def _enrich(item: models.Inventory, db: Session) -> InventoryResponse:
         models.TcgDetail.product_id == item.product_id
     ).first()
     if tcg:
-        # Look up set name
         set_name = None
         if tcg.set_id:
             s = db.query(models.Set).filter(models.Set.set_id == tcg.set_id).first()
             set_name = s.set_name if s else None
+
+        # Look up category name
+        game = "TCG"
+        if tcg.category_id:
+            cat = db.query(models.Category).filter(models.Category.category_id == tcg.category_id).first()
+            game = cat.category_name if cat else "TCG"
 
         base.card_name = tcg.card_name
         base.card_number = tcg.card_number
@@ -132,45 +137,36 @@ def _enrich(item: models.Inventory, db: Session) -> InventoryResponse:
         base.rarity = tcg.rarity
         base.is_foil = tcg.is_foil
         base.set_name = set_name
-
-        # Determine game from category/element fields
-        if tcg.element:
-            base.game = "Final Fantasy TCG"
-        elif tcg.pokemon_type or tcg.hp:
-            base.game = "Pokemon"
-        elif tcg.mana_cost or tcg.color:
-            base.game = "Magic: The Gathering"
-        else:
-            base.game = tcg.category or "TCG"
+        base.game = game
         return base
 
-    # Try sports card details
-    sports = db.query(models.CardDetail).filter(
+    # Try sports/non-sport card details
+    card = db.query(models.CardDetail).filter(
         models.CardDetail.product_id == item.product_id
     ).first()
-    if sports:
+    if card:
         set_name = None
-        if sports.set_id:
-            s = db.query(models.Set).filter(models.Set.set_id == sports.set_id).first()
+        if card.set_id:
+            s = db.query(models.Set).filter(models.Set.set_id == card.set_id).first()
             set_name = s.set_name if s else None
 
-        sport_name = None
-        if sports.sport_id:
-            sp = db.query(models.Sport).filter(models.Sport.sport_id == sports.sport_id).first()
-            sport_name = sp.sport_name if sp else None
+        category_name = "Sports"
+        if card.category_id:
+            cat = db.query(models.Category).filter(models.Category.category_id == card.category_id).first()
+            category_name = cat.category_name if cat else "Sports"
 
-        base.card_name = sports.player
-        base.player = sports.player
-        base.team = sports.team
-        base.year = sports.year
-        base.card_number = sports.card_number
+        base.card_name = card.player
+        base.player = card.player
+        base.team = card.team
+        base.year = card.year
+        base.card_number = card.card_number
         base.set_name = set_name
-        base.game = sport_name or "Sports"
-        base.rookie_card = sports.rookie_card
-        base.autograph = sports.autograph
-        base.graded = sports.graded
-        base.grading_company = sports.grading_company
-        base.grade = sports.grade
+        base.game = category_name
+        base.rookie_card = card.rookie_card
+        base.autograph = card.autograph
+        base.graded = card.graded
+        base.grading_company = card.grading_company
+        base.grade = card.grade
         return base
 
     return base
