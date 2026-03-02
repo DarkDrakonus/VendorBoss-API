@@ -145,20 +145,20 @@ class ApiService {
   }
 
   Future<Show> getShow(String showId) async {
-    final data = await _get('${ApiConfig.shows}/$showId');
+    final data = await _get('/shows/$showId');
     return Show.fromApiJson(data['show']);
   }
 
   Future<ShowSummary> getShowSummary(String showId) async {
-    final data = await _get('${ApiConfig.shows}/$showId');
+    final data = await _get('/shows/$showId');
     final show = Show.fromApiJson(data['show']);
     return ShowSummary(
       show:              show,
-      totalSales:        (data['total_sales'] as num).toDouble(),
-      totalExpenses:     (data['total_expenses'] as num).toDouble(),
-      netProfit:         (data['net_profit'] as num).toDouble(),
+      totalSales:        _parseDouble(data['total_sales']),
+      totalExpenses:     _parseDouble(data['total_expenses']),
+      netProfit:         _parseDouble(data['net_profit']),
       totalTransactions: data['transaction_count'] ?? 0,
-      cardsSold:         0, // API doesn't track this separately yet
+      cardsSold:         0,
     );
   }
 
@@ -184,21 +184,27 @@ class ApiService {
   }
 
   Future<Show> updateShow(String showId, Map<String, dynamic> updates) async {
-    final data = await _put('${ApiConfig.shows}/$showId', updates);
+    final data = await _put('/shows/$showId', updates);
     return Show.fromApiJson(data);
   }
 
   Future<ShowSummary> closeShow(String showId) async {
-    final data = await _post('${ApiConfig.shows}/$showId/close', {});
+    final data = await _post('/shows/$showId/close', {});
     final show = Show.fromApiJson(data['show']);
     return ShowSummary(
       show:              show,
-      totalSales:        (data['total_sales'] as num).toDouble(),
-      totalExpenses:     (data['total_expenses'] as num).toDouble(),
-      netProfit:         (data['net_profit'] as num).toDouble(),
+      totalSales:        _parseDouble(data['total_sales']),
+      totalExpenses:     _parseDouble(data['total_expenses']),
+      netProfit:         _parseDouble(data['net_profit']),
       totalTransactions: data['transaction_count'] ?? 0,
       cardsSold:         0,
     );
+  }
+
+  static double _parseDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0.0;
   }
 
   // ── Sales ──────────────────────────────────────────────────────────────────
