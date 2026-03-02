@@ -13,8 +13,9 @@ from api.shows import router as shows_router
 from api.sales import router as sales_router
 from api.expenses import router as expenses_router
 
+from api.reports import router as reports_router
+
 # Coming soon:
-# from api.reports import router as reports_router
 # from api.cards import router as cards_router
 # from api.scan import router as scan_router
 
@@ -37,6 +38,7 @@ app.include_router(inventory_router)
 app.include_router(shows_router)
 app.include_router(sales_router)
 app.include_router(expenses_router)
+app.include_router(reports_router)
 
 @app.on_event("startup")
 def startup_event():
