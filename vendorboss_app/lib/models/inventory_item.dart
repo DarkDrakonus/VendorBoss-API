@@ -1,3 +1,9 @@
+double? _toDouble(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString());
+}
+
 class InventoryItem {
   final String id;
   final String cardId;
@@ -86,9 +92,9 @@ class InventoryItem {
       gradingCompany: json['grading_company'],
       grade:          json['grade'],
       quantity:       json['quantity'] ?? 1,
-      purchasePrice:  (json['purchase_price'] as num?)?.toDouble(),
-      marketPrice:    (json['current_market_price'] as num?)?.toDouble(),
-      askingPrice:    (json['asking_price'] as num?)?.toDouble(),
+      purchasePrice:  _toDouble(json['purchase_price']),
+      marketPrice:    _toDouble(json['current_market_price']),
+      askingPrice:    _toDouble(json['asking_price']),
       notes:          json['notes'],
       acquiredDate:   json['acquired_date'] != null
                         ? DateTime.parse(json['acquired_date'])

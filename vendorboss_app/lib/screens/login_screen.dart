@@ -15,8 +15,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _formKey            = GlobalKey<FormState>();
 
-  bool _loading       = false;
-  bool _obscure       = true;
+  bool _loading    = false;
+  bool _obscure    = true;
+  bool _rememberMe = false;
   String? _error;
 
   @override
@@ -34,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await AuthService.instance.login(
         _emailController.text.trim(),
         _passwordController.text,
+        rememberMe: _rememberMe,
       );
       if (!mounted) return;
       // Replace entire navigation stack with the main shell
@@ -137,7 +139,42 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 8),
+
+                  // ── Remember me ────────────────────────────────────────────
+                  Row(
+                    children: [
+                      SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: Checkbox(
+                          value: _rememberMe,
+                          onChanged: _loading
+                              ? null
+                              : (v) => setState(() => _rememberMe = v ?? false),
+                          activeColor: AppColors.accent,
+                          side: BorderSide(color: AppColors.textSecondary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      GestureDetector(
+                        onTap: _loading
+                            ? null
+                            : () => setState(() => _rememberMe = !_rememberMe),
+                        child: Text(
+                          'Remember me for 30 days',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
                   // ── Login button ────────────────────────────────────────
                   SizedBox(

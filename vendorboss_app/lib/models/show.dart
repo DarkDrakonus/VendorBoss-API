@@ -1,3 +1,16 @@
+/// Safely parse a value that may be a String or num into a double
+double _toDouble(dynamic v) {
+  if (v == null) return 0.0;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString()) ?? 0.0;
+}
+
+double? _toDoubleOrNull(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString());
+}
+
 class Show {
   final String id;
   final String userId;
@@ -51,7 +64,7 @@ class Show {
       location:    json['location'],
       venue:       json['venue'],
       tableNumber: json['table_number'],
-      tableCost:   (json['table_cost'] as num?)?.toDouble(),
+      tableCost:   _toDoubleOrNull(json['table_cost']),
       notes:       json['notes'],
       isActive:    json['is_active'] ?? false,
       createdAt:   json['created_at'] != null
@@ -156,12 +169,12 @@ class Sale {
   factory Sale.fromApiJson(Map<String, dynamic> json) {
     return Sale(
       id:              json['transaction_id'] ?? '',
-      showId:          null, // not returned directly — filtered by show_id query
+      showId:          json['show_id'],
       userId:          json['user_id'] ?? '',
-      items:           [], // API returns flat transaction, not line items
-      totalAmount:     (json['total_amount'] as num?)?.toDouble() ?? 0.0,
+      items:           [],
+      totalAmount:     _toDouble(json['total_amount']),
       paymentMethod:   json['payment_method'] ?? 'cash',
-      saleChannel:     json['payment_method'] ?? 'in_person',
+      saleChannel:     json['sale_channel'] ?? 'in_person',
       notes:           json['notes'],
       saleDate:        DateTime.parse(
                          json['transaction_date'] ?? DateTime.now().toIso8601String()),
@@ -214,7 +227,7 @@ class Expense {
       userId:        json['user_id'] ?? '',
       type:          json['expense_type'] ?? 'other',
       description:   json['description'] ?? '',
-      amount:        (json['amount'] as num?)?.toDouble() ?? 0.0,
+      amount:        _toDouble(json['amount']),
       paymentMethod: json['payment_method'] ?? 'cash',
       notes:         json['notes'],
       expenseDate:   DateTime.parse(

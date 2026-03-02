@@ -32,9 +32,11 @@ class AuthService {
     return token;
   }
 
-  Future<void> _saveToken(String token) async {
-    // Save token and set expiry 25 minutes from now (5 min buffer before 30 min expiry)
-    final expiry = DateTime.now().add(const Duration(minutes: 25));
+  Future<void> _saveToken(String token, {bool rememberMe = false}) async {
+    // 30 days if remember me, otherwise 25 min (5 min buffer before server's 30 min expiry)
+    final expiry = rememberMe
+        ? DateTime.now().add(const Duration(days: 30))
+        : DateTime.now().add(const Duration(minutes: 25));
     await _storage.write(key: _tokenKey, value: token);
     await _storage.write(key: _expiryKey, value: expiry.toIso8601String());
   }
@@ -62,6 +64,7 @@ class AuthService {
         'username':          user.username,
         'first_name':        user.firstName,
         'last_name':         user.lastName,
+        'business_name':     user.businessName,
         'subscription_tier': user.subscriptionTier,
         'card_count':        user.cardCount,
         'is_verified':       user.isVerified,
@@ -70,11 +73,15 @@ class AuthService {
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  Future<AppUser> login(String email, String password) async {
+  Future<AppUser> login(String email, String password, {bool rememberMe = false}) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.login}'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+        'remember_me': rememberMe,
+      }),
     ).timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
@@ -83,7 +90,7 @@ class AuthService {
     }
 
     final data = jsonDecode(response.body);
-    await _saveToken(data['access_token']);
+    await _saveToken(data['access_token'], rememberMe: rememberMe);
 
     final user = await getMe(data['access_token']);
     await _saveUser(user);
