@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
-import 'login_screen.dart' show _Field;
+import '../widgets/auth_field.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -11,23 +11,39 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _firstNameController = TextEditingController();
-  final _lastNameController  = TextEditingController();
-  final _usernameController  = TextEditingController();
-  final _emailController     = TextEditingController();
-  final _passwordController  = TextEditingController();
-  final _confirmController   = TextEditingController();
-  final _formKey             = GlobalKey<FormState>();
+  final _firstNameController   = TextEditingController();
+  final _lastNameController    = TextEditingController();
+  final _businessNameController = TextEditingController();
+  final _emailController       = TextEditingController();
+  final _passwordController    = TextEditingController();
+  final _confirmController     = TextEditingController();
+  final _formKey               = GlobalKey<FormState>();
 
   bool _loading = false;
   bool _obscure = true;
   String? _error;
 
+  // Password strength requirements
+  static final _hasUppercase   = RegExp(r'[A-Z]');
+  static final _hasLowercase   = RegExp(r'[a-z]');
+  static final _hasDigit       = RegExp(r'[0-9]');
+  static final _hasSpecial     = RegExp(r'[!@#\$&*~%^()_\-+=\[\]{};:,.<>?/\\|`]');
+
+  String? _validatePassword(String? v) {
+    if (v == null || v.isEmpty) return 'Password is required';
+    if (v.length < 10) return 'At least 10 characters required';
+    if (!_hasUppercase.hasMatch(v)) return 'Must contain an uppercase letter';
+    if (!_hasLowercase.hasMatch(v)) return 'Must contain a lowercase letter';
+    if (!_hasDigit.hasMatch(v)) return 'Must contain a number';
+    if (!_hasSpecial.hasMatch(v)) return 'Must contain a special character (!@#\$&*~ etc)';
+    return null;
+  }
+
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
-    _usernameController.dispose();
+    _businessNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
@@ -40,17 +56,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       await AuthService.instance.register(
-        email:     _emailController.text.trim(),
-        password:  _passwordController.text,
-        username:  _usernameController.text.trim().isEmpty
-                     ? null
-                     : _usernameController.text.trim(),
-        firstName: _firstNameController.text.trim().isEmpty
-                     ? null
-                     : _firstNameController.text.trim(),
-        lastName:  _lastNameController.text.trim().isEmpty
-                     ? null
-                     : _lastNameController.text.trim(),
+        email:        _emailController.text.trim(),
+        password:     _passwordController.text,
+        businessName: _businessNameController.text.trim().isEmpty
+                        ? null
+                        : _businessNameController.text.trim(),
+        firstName:    _firstNameController.text.trim().isEmpty
+                        ? null
+                        : _firstNameController.text.trim(),
+        lastName:     _lastNameController.text.trim().isEmpty
+                        ? null
+                        : _lastNameController.text.trim(),
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/home');
@@ -120,32 +136,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: _Field(
+                      child: AuthField(
                         controller: _firstNameController,
                         label: 'First Name',
                         icon: Icons.person_outline,
+                        textCapitalization: TextCapitalization.words,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _Field(
+                      child: AuthField(
                         controller: _lastNameController,
                         label: 'Last Name',
                         icon: Icons.person_outline,
+                        textCapitalization: TextCapitalization.words,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
 
-                _Field(
-                  controller: _usernameController,
-                  label: 'Username (optional)',
-                  icon: Icons.alternate_email,
+                // ── Business name ──────────────────────────────────────────
+                AuthField(
+                  controller: _businessNameController,
+                  label: 'Business Name (optional)',
+                  icon: Icons.storefront_outlined,
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    'e.g. Triple Play Sports Cards — shown as your greeting',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
                 ),
                 const SizedBox(height: 16),
 
-                _Field(
+                AuthField(
                   controller: _emailController,
                   label: 'Email',
                   icon: Icons.email_outlined,
@@ -158,11 +186,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                _Field(
+                // ── Password — allow OS autofill/suggestions ───────────────
+                AuthField(
                   controller: _passwordController,
                   label: 'Password',
                   icon: Icons.lock_outlined,
                   obscureText: _obscure,
+                  enableSuggestions: false,
+                  autofillHints: const [AutofillHints.newPassword],
                   suffix: IconButton(
                     icon: Icon(
                       _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -171,19 +202,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     onPressed: () => setState(() => _obscure = !_obscure),
                   ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Password is required';
-                    if (v.length < 8) return 'At least 8 characters';
-                    return null;
-                  },
+                  validator: _validatePassword,
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    'Min 10 chars · uppercase · lowercase · number · special character',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                  ),
                 ),
                 const SizedBox(height: 16),
 
-                _Field(
+                AuthField(
                   controller: _confirmController,
                   label: 'Confirm Password',
                   icon: Icons.lock_outlined,
                   obscureText: _obscure,
+                  enableSuggestions: false,
+                  autofillHints: const [AutofillHints.newPassword],
                   validator: (v) {
                     if (v != _passwordController.text) return 'Passwords do not match';
                     return null;

@@ -95,7 +95,7 @@ class AuthService {
   Future<AppUser> register({
     required String email,
     required String password,
-    String? username,
+    String? businessName,
     String? firstName,
     String? lastName,
   }) async {
@@ -103,11 +103,11 @@ class AuthService {
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.register}'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'email':      email,
-        'password':   password,
-        'username':   username,
-        'first_name': firstName,
-        'last_name':  lastName,
+        'email':         email,
+        'password':      password,
+        'business_name': businessName,
+        'first_name':    firstName,
+        'last_name':     lastName,
       }),
     ).timeout(const Duration(seconds: 15));
 
@@ -146,6 +146,7 @@ class AuthService {
       username:         data['username'],
       firstName:        data['first_name'],
       lastName:         data['last_name'],
+      businessName:     data['business_name'],
       subscriptionTier: 'free',
       cardCount:        0,
       isVerified:       data['is_verified'] ?? false,

@@ -28,8 +28,12 @@ def get_db():
         db.close()
 
 def init_db():
-    """Initialize database tables (if they don't exist)"""
-    import models
-    # Note: In production, use Alembic migrations instead of create_all
-    # Base.metadata.create_all(bind=engine)
-    pass  # Assuming tables already exist in your Railway database
+    """Initialize database tables and run lightweight migrations."""
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        # Add business_name column if it doesn't exist
+        conn.execute(text("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS business_name VARCHAR;
+        """))
+        conn.commit()

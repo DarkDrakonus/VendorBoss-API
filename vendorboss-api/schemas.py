@@ -16,11 +16,13 @@ class Token(BaseModel):
 class UserBase(BaseModel):
     email: EmailStr
     username: Optional[str] = None
+    business_name: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    business_name: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
