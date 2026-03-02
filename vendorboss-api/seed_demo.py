@@ -36,6 +36,7 @@ db.execute(text("""
         ('sports', 'Sports Card')
     ON CONFLICT (product_type_name) DO NOTHING
 """))
+db.commit()
 
 # ── 2. Ensure sports exist ────────────────────────────────────────────────────
 print("  → Sports...")
@@ -50,6 +51,7 @@ db.execute(text("""
         ('hockey',   'Hockey')
     ON CONFLICT (sport_name) DO NOTHING
 """))
+db.commit()
 
 # ── 3. Ensure brands exist ────────────────────────────────────────────────────
 print("  → Brands...")
@@ -64,6 +66,7 @@ db.execute(text("""
         ('bowman',   'Bowman')
     ON CONFLICT (brand_name) DO NOTHING
 """))
+db.commit()
 
 # ── 4. Ensure sets exist ──────────────────────────────────────────────────────
 print("  → Sets...")
