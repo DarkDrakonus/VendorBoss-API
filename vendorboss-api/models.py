@@ -15,40 +15,31 @@ def generate_uuid():
 
 # ========== Core Reference Tables ==========
 
-class Sport(Base):
-    __tablename__ = "sports"
-    sport_id = Column(String, primary_key=True)
-    sport_name = Column(String, nullable=False, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-class League(Base):
-    __tablename__ = "leagues"
-    league_id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    sport_id = Column(String, ForeignKey("sports.sport_id"), nullable=False)
-
-class Team(Base):
-    __tablename__ = "teams"
-    team_id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    sport_id = Column(String, ForeignKey("sports.sport_id"), nullable=False)
-    league_id = Column(Integer, ForeignKey("leagues.league_id"))
+class Category(Base):
+    __tablename__ = "categories"
+    category_id   = Column(Integer, primary_key=True, autoincrement=True)
+    category_name = Column(String, nullable=False, unique=True)
+    category_type = Column(String, nullable=False, default='tcg')  # tcg, sports, non_sport
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
 
 class Brand(Base):
     __tablename__ = "brands"
-    brand_id = Column(String, primary_key=True)
+    brand_id   = Column(Integer, primary_key=True, autoincrement=True)
     brand_name = Column(String, nullable=False, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    is_active = Column(Boolean, default=True)
+    is_active  = Column(Boolean, default=True)
 
 class Set(Base):
     __tablename__ = "sets"
-    set_id = Column(String, primary_key=True)
-    set_name = Column(String, nullable=False)
-    set_year = Column(Integer, nullable=False)
-    sport_id = Column(String, ForeignKey("sports.sport_id"), nullable=False)
-    brand_id = Column(String, ForeignKey("brands.brand_id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    set_id       = Column(Integer, primary_key=True, autoincrement=True)
+    set_name     = Column(String, nullable=False)
+    set_code     = Column(String(30))
+    set_year     = Column(Integer, nullable=False)
+    category_id  = Column(Integer, ForeignKey("categories.category_id"), nullable=False)
+    brand_id     = Column(Integer, ForeignKey("brands.brand_id"), nullable=False)
+    total_cards  = Column(Integer)
+    release_date = Column(DateTime(timezone=True))
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
 
 class ProductType(Base):
     __tablename__ = "product_types"
@@ -83,12 +74,12 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True))
 
 class CardDetail(Base):
-    """Sports card specific details"""
+    """Sports and non-sport card specific details"""
     __tablename__ = "card_details"
-    card_id = Column(String, primary_key=True, default=generate_uuid)
-    product_id = Column(String, ForeignKey("products.product_id"), unique=True, nullable=False)
-    sport_id = Column(String, ForeignKey("sports.sport_id"))
-    set_id = Column(String, ForeignKey("sets.set_id"))
+    card_id     = Column(String, primary_key=True, default=generate_uuid)
+    product_id  = Column(String, ForeignKey("products.product_id"), unique=True, nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.category_id"))
+    set_id      = Column(Integer, ForeignKey("sets.set_id"))
     team = Column(String)
     player = Column(String, index=True, nullable=False)
     position = Column(String)
@@ -112,46 +103,47 @@ class CardDetail(Base):
     is_sp = Column(Boolean, default=False)
 
 class TcgDetail(Base):
-    """Trading Card Game specific details (Final Fantasy, Pokemon, Magic, etc)"""
+    """Trading Card Game specific details (Pokemon, Magic, One Piece, FFTCG, etc)"""
     __tablename__ = "tcg_details"
-    tcg_id = Column(String, primary_key=True, default=generate_uuid)
-    product_id = Column(String, ForeignKey("products.product_id"), unique=True, nullable=False)
-    set_id = Column(String, ForeignKey("sets.set_id"))
-    
+    tcg_id      = Column(String, primary_key=True, default=generate_uuid)
+    product_id  = Column(String, ForeignKey("products.product_id"), unique=True, nullable=False)
+    set_id      = Column(Integer, ForeignKey("sets.set_id"))
+    category_id = Column(Integer, ForeignKey("categories.category_id"))
+
     # Universal TCG fields
-    card_name = Column(String, nullable=False, index=True)
+    card_name   = Column(String, nullable=False, index=True)
     card_number = Column(String)
-    rarity = Column(String)
-    card_type = Column(String)
-    
-    # Final Fantasy TCG specific
-    element = Column(String)  # Fire, Ice, Wind, Earth, Lightning, Water, Light, Dark
-    cost = Column(Integer)
-    power = Column(Integer)
-    job = Column(String)
-    category = Column(String)  # Which FF game
-    
-    # Pokemon TCG specific
+    rarity      = Column(String)
+    card_type   = Column(String)
+
+    # Final Fantasy TCG
+    element       = Column(String)
+    cost          = Column(Integer)
+    power         = Column(Integer)
+    job           = Column(String)
+    fftcg_category = Column(String)  # Which FF game (renamed from category)
+
+    # Pokemon
     pokemon_type = Column(String)
-    hp = Column(Integer)
-    stage = Column(String)
-    
-    # Magic TCG specific
+    hp           = Column(Integer)
+    stage        = Column(String)
+
+    # Magic: The Gathering
     mana_cost = Column(String)
-    color = Column(String)
-    
-    # Common fields
-    text = Column(Text)
-    set_code = Column(String(20), index=True)
+    color     = Column(String)
+
+    # Common
+    text         = Column(Text)
+    set_code     = Column(String(20), index=True)
     variant_type = Column(String(20), default='normal')
-    is_foil = Column(Boolean, default=False)
-    image_url = Column(Text)
-    flavor_text = Column(Text)
-    artist = Column(String)
-    foil = Column(Boolean, default=False)
-    variant = Column(Boolean, default=False)
+    is_foil      = Column(Boolean, default=False)
+    image_url    = Column(Text)
+    flavor_text  = Column(Text)
+    artist       = Column(String)
+    foil         = Column(Boolean, default=False)
+    variant      = Column(Boolean, default=False)
     variant_name = Column(String)
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True))
 
