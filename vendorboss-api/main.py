@@ -1,6 +1,6 @@
 """
 VendorBoss 2.0 API
-Card identification and inventory management using visual fingerprinting
+Inventory and show management for TCG/sports card vendors
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,18 +8,22 @@ from database import init_db
 
 # Import routers
 from auth import router as auth_router
-from api.fingerprints import router as fingerprints_router
-from api.metadata import router as metadata_router
-from api.bulk_upload import router as bulk_upload_router
+from api.inventory import router as inventory_router
+from api.shows import router as shows_router
 
-# App Initialization
+# Coming soon:
+# from api.sales import router as sales_router
+# from api.expenses import router as expenses_router
+# from api.reports import router as reports_router
+# from api.cards import router as cards_router
+# from api.scan import router as scan_router
+
 app = FastAPI(
-    title="VendorBoss 2.0 API",
-    description="Card identification using visual fingerprinting - Starting with Final Fantasy TCG",
+    title="VendorBoss API",
+    description="Inventory and show management for card vendors",
     version="2.0.0"
 )
 
-# CORS - Allow all origins in development (restrict in production)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,24 +32,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(auth_router)
-app.include_router(fingerprints_router)
-app.include_router(metadata_router)
-app.include_router(bulk_upload_router)  # NEW: Bulk upload for local dev
+app.include_router(inventory_router)
+app.include_router(shows_router)
 
 @app.on_event("startup")
 def startup_event():
-    """Initialize database on startup"""
     init_db()
 
-@app.get("/")
+@app.get("/", tags=["Health"])
 def root():
-    """API root endpoint"""
     return {
-        "name": "VendorBoss 2.0 API",
+        "name": "VendorBoss API",
         "version": "2.0.0",
-        "status": "active",
-        "docs": "/docs",
-        "focus": "Final Fantasy Trading Card Game"
+        "status": "running",
+        "docs": "/docs"
     }
