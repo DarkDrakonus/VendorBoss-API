@@ -38,11 +38,10 @@ class AppUser {
     );
   }
 
-  /// Greeting name — business name takes priority, then first name, then email
+  /// Greeting name — business name if entered, otherwise first name
   String get displayName {
     if (businessName != null && businessName!.isNotEmpty) return businessName!;
-    if (firstName != null && firstName!.isNotEmpty) return firstName!;
-    return email.split('@').first;
+    return firstName ?? 'there';
   }
 
   /// Full personal name for profile display
