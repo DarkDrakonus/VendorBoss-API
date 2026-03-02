@@ -1,27 +1,96 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
-import '../services/mock_data_service.dart';
+import '../services/auth_service.dart';
+import '../services/api_service.dart';
+import '../models/app_user.dart';
 import '../models/show.dart';
 import 'show_detail_screen.dart';
 import 'settings_screen.dart';
 import 'sale_screen.dart';
 import '../widgets/connectivity_banner.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  AppUser? _user;
+  List<Show> _shows = [];
+  List<Sale> _activeSales = [];
+  List<Expense> _activeExpenses = [];
+  List<Sale> _generalSales = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      // Load user from cache first for instant greeting, then refresh from API
+      final cached = await AuthService.instance.getCachedUser();
+      if (cached != null && mounted) setState(() => _user = cached);
+
+      final results = await Future.wait([
+        AuthService.instance.getMe(null),
+        ApiService.instance.getShows(),
+      ]);
+
+      final user   = results[0] as AppUser;
+      final shows  = results[1] as List<Show>;
+      final active = shows.where((s) => s.isActive).firstOrNull;
+
+      // Load sales/expenses for active show and general sales in parallel
+      final List<dynamic> salesData = await Future.wait([
+        active != null
+            ? ApiService.instance.getSales(showId: active.id)
+            : Future.value(<Sale>[]),
+        active != null
+            ? ApiService.instance.getExpenses(showId: active.id)
+            : Future.value(<Expense>[]),
+        ApiService.instance.getSales(), // all sales for general total
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _user           = user;
+        _shows          = shows;
+        _activeSales    = salesData[0] as List<Sale>;
+        _activeExpenses = salesData[1] as List<Expense>;
+        // General sales = sales with no show association
+        _generalSales   = (salesData[2] as List<Sale>)
+            .where((s) => s.showId == null)
+            .toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error   = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = MockDataService.currentUser;
-    final shows = MockDataService.shows;
-    final activeShow = shows.where((s) => s.isActive).firstOrNull;
-    final activeSales = activeShow != null ? MockDataService.salesForActiveShow : <Sale>[];
-    final activeExpenses = activeShow != null ? MockDataService.expensesForActiveShow : <Expense>[];
-    final todaySales = activeSales.fold(0.0, (s, sale) => s + sale.totalAmount);
-    final todayExpenses = activeExpenses.fold(0.0, (s, e) => s + e.amount);
-    final netToday = todaySales - todayExpenses;
-    final currency = NumberFormat.currency(symbol: '\$');
+    final activeShow    = _shows.where((s) => s.isActive).firstOrNull;
+    final todaySales    = _activeSales.fold(0.0, (s, sale) => s + sale.totalAmount);
+    final todayExpenses = _activeExpenses.fold(0.0, (s, e) => s + e.amount);
+    final netToday      = todaySales - todayExpenses;
+    final generalTotal  = _generalSales.fold(0.0, (s, sale) => s + sale.totalAmount);
+    final currency      = NumberFormat.currency(symbol: '\$');
+
+    // Greeting — business name first, then first name, then fallback
+    final greeting = _user?.displayName ?? '...';
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -30,136 +99,175 @@ class DashboardScreen extends StatelessWidget {
         icon: const Icon(Icons.point_of_sale),
         label: const Text('Quick Sale', style: TextStyle(fontWeight: FontWeight.w700)),
         onPressed: () {
-          final active = MockDataService.shows.where((s) => s.isActive).firstOrNull;
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => SaleScreen(show: active)),
-          );
+            MaterialPageRoute(builder: (_) => SaleScreen(show: activeShow)),
+          ).then((_) => _load()); // Refresh after sale
         },
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 110,
-            floating: false,
-            pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-              title: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'VendorBoss',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                  ),
-                  Text(
-                    'Hey, ${user.firstName ?? user.displayName}',
-                    style: const TextStyle(
-                      color: AppColors.accent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: CustomScrollView(
+          slivers: [
+            SliverAppBar(
+              expandedHeight: 110,
+              floating: false,
+              pinned: true,
+              flexibleSpace: FlexibleSpaceBar(
+                titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
+                title: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'VendorBoss',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              const ConnectivityIconBadge(),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    Text(
+                      'Hey, $greeting',
+                      style: const TextStyle(
+                        color: AppColors.accent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Active show banner
-                  if (activeShow != null) ...[
-                    _ActiveShowBanner(
-                      show: activeShow,
-                      totalSales: todaySales,
-                      onOpen: () => _openShow(context, activeShow),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Today's show performance
-                  if (activeShow != null) ...[
-                    const _SectionHeader("Today's Performance"),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Sales',
-                            value: currency.format(todaySales),
-                            icon: Icons.trending_up,
-                            color: AppColors.success,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Expenses',
-                            value: currency.format(todayExpenses),
-                            icon: Icons.receipt_long_outlined,
-                            color: AppColors.warning,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _StatCard(
-                            label: 'Net',
-                            value: currency.format(netToday),
-                            icon: Icons.account_balance_wallet_outlined,
-                            color: netToday >= 0 ? AppColors.accent : AppColors.danger,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // General sales
-                  const _SectionHeader('General Sales'),
-                  const SizedBox(height: 8),
-                  const _GeneralSalesCard(),
-                  const SizedBox(height: 20),
-
-                  // Inventory summary
-                  const _SectionHeader('Inventory'),
-                  const SizedBox(height: 8),
-                  _InventorySummaryCard(
-                    totalCards: user.cardCount,
-                    isAtLimit: user.isAtFreeLimit,
+              actions: [
+                const ConnectivityIconBadge(),
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
                   ),
-                  const SizedBox(height: 20),
-
-                  // Recent shows
-                  const _SectionHeader('Recent Shows'),
-                  const SizedBox(height: 8),
-                  ...shows.take(3).map(
-                        (show) => _RecentShowTile(
-                          show: show,
-                          onTap: () => _openShow(context, show),
-                        ),
-                      ),
-
-                  const SizedBox(height: 100),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-        ],
+
+            // ── Error state ─────────────────────────────────────────────────
+            if (_error != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Card(
+                    color: AppColors.danger.withOpacity(0.1),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.wifi_off, color: AppColors.danger),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Could not load data. Pull down to retry.',
+                              style: TextStyle(color: AppColors.danger),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // ── Loading shimmer ──────────────────────────────────────────────
+            if (_loading && _user == null)
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Active show banner
+                      if (activeShow != null) ...[
+                        _ActiveShowBanner(
+                          show: activeShow,
+                          totalSales: todaySales,
+                          onOpen: () => _openShow(context, activeShow),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Today's performance
+                      if (activeShow != null) ...[
+                        const _SectionHeader("Today's Performance"),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _StatCard(
+                                label: 'Sales',
+                                value: currency.format(todaySales),
+                                icon: Icons.trending_up,
+                                color: AppColors.success,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _StatCard(
+                                label: 'Expenses',
+                                value: currency.format(todayExpenses),
+                                icon: Icons.receipt_long_outlined,
+                                color: AppColors.warning,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _StatCard(
+                                label: 'Net',
+                                value: currency.format(netToday),
+                                icon: Icons.account_balance_wallet_outlined,
+                                color: netToday >= 0 ? AppColors.accent : AppColors.danger,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // General sales
+                      const _SectionHeader('General Sales'),
+                      const SizedBox(height: 8),
+                      _GeneralSalesCard(
+                        sales: _generalSales,
+                        total: generalTotal,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Inventory summary
+                      const _SectionHeader('Inventory'),
+                      const SizedBox(height: 8),
+                      _InventorySummaryCard(
+                        totalCards: _user?.cardCount ?? 0,
+                        isAtLimit: _user?.isAtFreeLimit ?? false,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Recent shows
+                      if (_shows.isNotEmpty) ...[
+                        const _SectionHeader('Recent Shows'),
+                        const SizedBox(height: 8),
+                        ..._shows.take(3).map(
+                              (show) => _RecentShowTile(
+                                show: show,
+                                onTap: () => _openShow(context, show),
+                              ),
+                            ),
+                      ],
+
+                      const SizedBox(height: 100),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -168,7 +276,7 @@ class DashboardScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => ShowDetailScreen(show: show)),
-    );
+    ).then((_) => _load());
   }
 }
 
@@ -296,94 +404,92 @@ class _StatCard extends StatelessWidget {
 // ── General Sales Card ────────────────────────────────────────────────────────
 
 class _GeneralSalesCard extends StatelessWidget {
-  const _GeneralSalesCard();
+  final List<Sale> sales;
+  final double total;
+
+  const _GeneralSalesCard({required this.sales, required this.total});
 
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(symbol: '\$');
-    final sales = MockDataService.generalSales;
-    final total = MockDataService.generalSalesTotal;
 
-    // Group totals by channel
     final channels = <String, double>{};
     for (final sale in sales) {
-      channels[sale.saleChannel] = (channels[sale.saleChannel] ?? 0) + sale.totalAmount;
+      final ch = sale.saleChannel.isEmpty ? 'in_person' : sale.saleChannel;
+      channels[ch] = (channels[ch] ?? 0) + sale.totalAmount;
     }
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  currency.format(total),
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.success,
-                  ),
-                ),
-                Text(
-                  '${sales.length} sale${sales.length == 1 ? '' : 's'}',
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-            if (channels.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              const Divider(height: 1),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
-                children: channels.entries.map((e) {
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
+        child: sales.isEmpty
+            ? const Text(
+                'No general sales yet',
+                style: TextStyle(color: AppColors.textSecondary),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(_channelIcon(e.key), size: 14, color: AppColors.textSecondary),
-                      const SizedBox(width: 4),
                       Text(
-                        '${_channelLabel(e.key)}: ${currency.format(e.value)}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        currency.format(total),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      Text(
+                        '${sales.length} sale${sales.length == 1 ? '' : 's'}',
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
                     ],
-                  );
-                }).toList(),
+                  ),
+                  if (channels.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    const Divider(height: 1),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: channels.entries.map((e) {
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_channelIcon(e.key), size: 14, color: AppColors.textSecondary),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${_channelLabel(e.key)}: ${currency.format(e.value)}',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ],
-        ),
       ),
     );
   }
 
   IconData _channelIcon(String channel) {
     switch (channel) {
-      case 'tcgplayer':
-        return Icons.storefront_outlined;
-      case 'ebay':
-        return Icons.shopping_bag_outlined;
-      case 'whatnot':
-        return Icons.live_tv_outlined;
-      default:
-        return Icons.handshake_outlined;
+      case 'tcgplayer': return Icons.storefront_outlined;
+      case 'ebay':      return Icons.shopping_bag_outlined;
+      case 'whatnot':   return Icons.live_tv_outlined;
+      default:          return Icons.handshake_outlined;
     }
   }
 
   String _channelLabel(String channel) {
     switch (channel) {
-      case 'tcgplayer':
-        return 'TCGPlayer';
-      case 'ebay':
-        return 'eBay';
-      case 'whatnot':
-        return 'Whatnot';
-      default:
-        return 'In-Person';
+      case 'tcgplayer': return 'TCGPlayer';
+      case 'ebay':      return 'eBay';
+      case 'whatnot':   return 'Whatnot';
+      default:          return 'In-Person';
     }
   }
 }
@@ -414,7 +520,7 @@ class _InventorySummaryCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: totalCards / 200,
+                value: (totalCards / 200).clamp(0.0, 1.0),
                 backgroundColor: AppColors.darkSurfaceElevated,
                 valueColor: AlwaysStoppedAnimation(
                   isAtLimit ? AppColors.danger : AppColors.accent,

@@ -141,6 +141,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         label: 'First Name',
                         icon: Icons.person_outline,
                         textCapitalization: TextCapitalization.words,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Required' : null,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -150,6 +152,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         label: 'Last Name',
                         icon: Icons.person_outline,
                         textCapitalization: TextCapitalization.words,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Required' : null,
                       ),
                     ),
                   ],
