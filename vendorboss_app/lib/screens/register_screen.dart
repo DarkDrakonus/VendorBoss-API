@@ -56,7 +56,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     try {
       await AuthService.instance.register(
-        email:        _emailController.text.trim(),
+        email:        _emailController.text.trim().toLowerCase(),
         password:     _passwordController.text,
         businessName: _businessNameController.text.trim().isEmpty
                         ? null

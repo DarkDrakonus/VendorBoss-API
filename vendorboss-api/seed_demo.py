@@ -15,7 +15,14 @@ load_dotenv()
 engine = create_engine(os.getenv("DATABASE_URL"))
 db = engine.connect()
 
-USER_ID = "ad1d0a61-767a-4e7a-b264-20df53ca9ac4"
+DEMO_EMAIL = "demo@vendorboss.com"
+
+# Look up user_id dynamically so this script never breaks after re-registration
+_user = db.execute(text("SELECT user_id FROM users WHERE email = :e"), {"e": DEMO_EMAIL}).fetchone()
+if not _user:
+    raise SystemExit(f"❌ User {DEMO_EMAIL} not found. Register the demo account first.")
+USER_ID = _user[0]
+print(f"  ✓ Demo user found: {USER_ID}")
 
 def uid():
     return str(uuid.uuid4())

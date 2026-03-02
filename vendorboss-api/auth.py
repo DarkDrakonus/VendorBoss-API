@@ -91,8 +91,9 @@ def login(form_data: schemas.UserLogin, db: Session = Depends(get_db)):
     
     if not user or not verify_password(form_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
-    access_token = create_access_token(data={"sub": str(user.user_id)})
+
+    expires = timedelta(days=30) if form_data.remember_me else timedelta(minutes=30)
+    access_token = create_access_token(data={"sub": str(user.user_id)}, expires_delta=expires)
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=schemas.User)

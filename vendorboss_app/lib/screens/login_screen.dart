@@ -33,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await AuthService.instance.login(
-        _emailController.text.trim(),
+        _emailController.text.trim().toLowerCase(),
         _passwordController.text,
         rememberMe: _rememberMe,
       );
