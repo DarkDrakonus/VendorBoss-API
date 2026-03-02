@@ -73,11 +73,9 @@ def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
         password_hash=hashed_password,
         first_name=user_data.first_name,
         last_name=user_data.last_name,
+        business_name=user_data.business_name,
         is_verified=False,
     )
-    # business_name stored in username field until we add the column
-    if user_data.business_name and not user_data.username:
-        db_user.username = user_data.business_name
     
     db.add(db_user)
     db.commit()
