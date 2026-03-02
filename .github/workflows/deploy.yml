@@ -1,0 +1,25 @@
+name: Deploy VendorBoss API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'vendorboss-api/**'
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: bash $GITHUB_WORKSPACE/vendorboss-api/scripts/deploy.sh
+
+      - name: Verify API is up
+        run: |
+          sleep 4
+          curl -sf http://localhost:8001/ && echo "✅ Deployed successfully" || (echo "❌ API not responding" && exit 1)
