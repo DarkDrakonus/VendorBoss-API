@@ -32,6 +32,7 @@ class User(UserBase):
     user_id: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    business_name: Optional[str] = None
     is_verified: Optional[bool] = None
     created_at: datetime
     

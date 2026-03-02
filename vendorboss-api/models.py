@@ -66,6 +66,7 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     first_name = Column(String)
     last_name = Column(String)
+    business_name = Column(String)
     is_verified = Column(Boolean)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True))
