@@ -161,7 +161,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Error: $_error',
+                              'Could not load data. Pull down to retry.',
                               style: TextStyle(color: AppColors.danger),
                             ),
                           ),
