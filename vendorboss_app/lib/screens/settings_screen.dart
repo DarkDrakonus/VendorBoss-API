@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../theme/app_theme.dart';
+import '../services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -235,9 +236,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              // TODO: Clear auth token and navigate to login
+              await AuthService.instance.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+              }
             },
             child: const Text('Sign Out'),
           ),

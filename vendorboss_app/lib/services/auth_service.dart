@@ -9,17 +9,37 @@ class AuthService {
   AuthService._();
 
   static const _storage = FlutterSecureStorage();
-  static const _tokenKey = 'auth_token';
-  static const _userKey  = 'current_user';
+  static const _tokenKey   = 'auth_token';
+  static const _userKey    = 'current_user';
+  static const _expiryKey  = 'token_expiry';
 
   // ── Token management ───────────────────────────────────────────────────────
 
-  Future<String?> getToken() => _storage.read(key: _tokenKey);
+  Future<String?> getToken() async {
+    final token = await _storage.read(key: _tokenKey);
+    if (token == null) return null;
 
-  Future<void> saveToken(String token) =>
-      _storage.write(key: _tokenKey, value: token);
+    // Check expiry — token lasts 30 min, refresh if within 5 min of expiry
+    final expiryStr = await _storage.read(key: _expiryKey);
+    if (expiryStr != null) {
+      final expiry = DateTime.parse(expiryStr);
+      if (DateTime.now().isAfter(expiry)) {
+        // Token expired — clear and return null to force re-login
+        await clearAuth();
+        return null;
+      }
+    }
+    return token;
+  }
 
-  Future<void> clearToken() => _storage.delete(key: _tokenKey);
+  Future<void> _saveToken(String token) async {
+    // Save token and set expiry 25 minutes from now (5 min buffer before 30 min expiry)
+    final expiry = DateTime.now().add(const Duration(minutes: 25));
+    await _storage.write(key: _tokenKey, value: token);
+    await _storage.write(key: _expiryKey, value: expiry.toIso8601String());
+  }
+
+  Future<void> clearAuth() => _storage.deleteAll();
 
   Future<bool> get isLoggedIn async => (await getToken()) != null;
 
@@ -53,9 +73,9 @@ class AuthService {
   Future<AppUser> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.login}'),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: {'username': email, 'password': password},
-    );
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    ).timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       final body = jsonDecode(response.body);
@@ -63,9 +83,8 @@ class AuthService {
     }
 
     final data = jsonDecode(response.body);
-    await saveToken(data['access_token']);
+    await _saveToken(data['access_token']);
 
-    // Fetch full user profile
     final user = await getMe(data['access_token']);
     await _saveUser(user);
     return user;
@@ -90,18 +109,22 @@ class AuthService {
         'first_name': firstName,
         'last_name':  lastName,
       }),
-    );
+    ).timeout(const Duration(seconds: 15));
 
-    if (response.statusCode != 201 && response.statusCode != 200) {
+    if (response.statusCode != 200 && response.statusCode != 201) {
       final body = jsonDecode(response.body);
       throw ApiException(body['detail'] ?? 'Registration failed', response.statusCode);
     }
 
-    // Auto-login after register
-    return login(email, password);
+    final data = jsonDecode(response.body);
+    await _saveToken(data['access_token']);
+
+    final user = await getMe(data['access_token']);
+    await _saveUser(user);
+    return user;
   }
 
-  // ── Get current user ───────────────────────────────────────────────────────
+  // ── Get current user profile ───────────────────────────────────────────────
 
   Future<AppUser> getMe(String? token) async {
     final t = token ?? await getToken();
@@ -110,22 +133,21 @@ class AuthService {
     final response = await http.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.me}'),
       headers: {'Authorization': 'Bearer $t'},
-    );
+    ).timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
       throw ApiException('Failed to get user profile', response.statusCode);
     }
 
     final data = jsonDecode(response.body);
-    // Map API field names to model
     return AppUser(
       id:               data['user_id'] ?? '',
       email:            data['email'] ?? '',
       username:         data['username'],
       firstName:        data['first_name'],
       lastName:         data['last_name'],
-      subscriptionTier: data['subscription_tier'] ?? 'free',
-      cardCount:        data['card_count'] ?? 0,
+      subscriptionTier: 'free',
+      cardCount:        0,
       isVerified:       data['is_verified'] ?? false,
       createdAt:        DateTime.parse(
                           data['created_at'] ?? DateTime.now().toIso8601String()),
@@ -134,9 +156,7 @@ class AuthService {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
 
-  Future<void> logout() async {
-    await _storage.deleteAll();
-  }
+  Future<void> logout() => clearAuth();
 }
 
 // ── Exception ──────────────────────────────────────────────────────────────

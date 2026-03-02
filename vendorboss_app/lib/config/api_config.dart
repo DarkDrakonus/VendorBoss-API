@@ -10,9 +10,9 @@ class ApiConfig {
   static const String baseUrl = _localUrl;
 
   // Endpoints
-  static const String login      = '/auth/login';
-  static const String register   = '/auth/register';
-  static const String me         = '/auth/me';
+  static const String login      = '/api/auth/login';
+  static const String register   = '/api/auth/register';
+  static const String me         = '/api/auth/me';
   static const String inventory  = '/inventory';
   static const String shows      = '/shows';
   static const String sales      = '/sales';
