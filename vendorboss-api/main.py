@@ -15,9 +15,8 @@ from api.expenses import router as expenses_router
 
 from api.reports import router as reports_router
 
-# Coming soon:
-# from api.cards import router as cards_router
-# from api.scan import router as scan_router
+from api.cards import router as cards_router
+from api.scan import router as scan_router
 
 app = FastAPI(
     title="VendorBoss API",
@@ -39,6 +38,8 @@ app.include_router(shows_router)
 app.include_router(sales_router)
 app.include_router(expenses_router)
 app.include_router(reports_router)
+app.include_router(cards_router)
+app.include_router(scan_router)
 
 @app.on_event("startup")
 def startup_event():
