@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../models/inventory_item.dart';
 import '../models/show.dart';
-import '../services/mock_data_service.dart';
+import '../services/api_service.dart';
 
 class _OrderItem {
   final InventoryItem inventoryItem;
@@ -42,10 +42,21 @@ class _SaleScreenState extends State<SaleScreen> {
 
   double get _orderTotal => _order.fold(0.0, (s, i) => s + i.lineTotal);
 
+  List<InventoryItem> _allInventory = [];
+
+  @override
+  void initState() {
+    super.initState();
+    ApiService.instance.getInventory(pageSize: 200).then((items) {
+      if (mounted) setState(() => _allInventory = items);
+    });
+  }
+
   List<InventoryItem> get _filteredInventory {
     if (_searchQuery.isEmpty) return [];
-    return MockDataService.inventoryItems
-        .where((i) => i.cardName.toLowerCase().contains(_searchQuery.toLowerCase()))
+    final q = _searchQuery.toLowerCase();
+    return _allInventory
+        .where((i) => i.cardName.toLowerCase().contains(q) || i.game.toLowerCase().contains(q))
         .toList();
   }
 
@@ -79,7 +90,9 @@ class _SaleScreenState extends State<SaleScreen> {
     setState(() => _order[index].quantity = qty);
   }
 
-  void _completeSale() {
+  bool _saving = false;
+
+  Future<void> _completeSale() async {
     if (_isBulkMode) {
       final amount = double.tryParse(_bulkAmountController.text);
       if (amount == null || amount <= 0) {
@@ -88,49 +101,85 @@ class _SaleScreenState extends State<SaleScreen> {
         );
         return;
       }
-    } else if (_order.isEmpty) {
-      return;
-    }
+    } else if (_order.isEmpty) return;
 
-    final total = _isBulkMode
-        ? (double.tryParse(_bulkAmountController.text) ?? 0)
-        : _orderTotal;
+    setState(() => _saving = true);
 
-    // TODO: Post sale to API
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Sale Complete!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle, color: AppColors.success, size: 56),
-            const SizedBox(height: 12),
-            Text(
-              currency.format(total),
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w800,
-                color: AppColors.success,
+    try {
+      if (_isBulkMode) {
+        // Bulk sale — record against first available inventory item or as general
+        final amount = double.parse(_bulkAmountController.text);
+        await ApiService.instance.recordSale(
+          inventoryId:   _allInventory.isNotEmpty ? _allInventory.first.id : 'bulk',
+          unitPrice:     amount,
+          quantity:      1,
+          paymentMethod: _paymentMethod,
+          showId:        widget.show?.id,
+          notes:         _bulkDescController.text.trim().isEmpty
+                           ? 'Bulk sale'
+                           : _bulkDescController.text.trim(),
+        );
+      } else {
+        // Record each card separately
+        for (final item in _order) {
+          await ApiService.instance.recordSale(
+            inventoryId:   item.inventoryItem.id,
+            unitPrice:     item.salePrice,
+            quantity:      item.quantity,
+            paymentMethod: _paymentMethod,
+            showId:        widget.show?.id,
+          );
+        }
+      }
+
+      if (!mounted) return;
+      final total = _isBulkMode
+          ? double.parse(_bulkAmountController.text)
+          : _orderTotal;
+
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Sale Complete!'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle, color: AppColors.success, size: 56),
+              const SizedBox(height: 12),
+              Text(
+                currency.format(total),
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.success,
+                ),
               ),
-            ),
-            Text(
-              _paymentMethod.toUpperCase(),
-              style: const TextStyle(color: AppColors.textSecondary),
+              Text(_paymentMethod.toUpperCase(),
+                  style: const TextStyle(color: AppColors.textSecondary)),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context); // close dialog
+                Navigator.pop(context); // back to show detail
+              },
+              child: const Text('Done'),
             ),
           ],
         ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sale failed: $e'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -200,7 +249,8 @@ class _SaleScreenState extends State<SaleScreen> {
             hasItems: hasItems,
             currency: currency,
             onPaymentChanged: (m) => setState(() => _paymentMethod = m),
-            onComplete: _completeSale,
+            onComplete: _saving ? null : _completeSale,
+              saving: _saving,
           ),
         ],
       ),
@@ -626,7 +676,8 @@ class _CheckoutBar extends StatelessWidget {
   final bool hasItems;
   final NumberFormat currency;
   final ValueChanged<String> onPaymentChanged;
-  final VoidCallback onComplete;
+  final VoidCallback? onComplete;
+  final bool saving;
 
   const _CheckoutBar({
     required this.total,
@@ -635,6 +686,7 @@ class _CheckoutBar extends StatelessWidget {
     required this.currency,
     required this.onPaymentChanged,
     required this.onComplete,
+    this.saving = false,
   });
 
   @override
@@ -688,15 +740,17 @@ class _CheckoutBar extends StatelessWidget {
               const Spacer(),
               SizedBox(
                 width: 160,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Complete Sale'),
+                child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: hasItems ? AppColors.accent : AppColors.darkSurfaceElevated,
-                    foregroundColor: hasItems ? Colors.black : AppColors.textLight,
+                    backgroundColor: hasItems && !saving ? AppColors.accent : AppColors.darkSurfaceElevated,
+                    foregroundColor: hasItems && !saving ? Colors.black : AppColors.textLight,
                   ),
-                  onPressed: hasItems ? onComplete : null,
+                  onPressed: onComplete,
+                  child: saving
+                      ? const SizedBox(height: 20, width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                      : const Text('Complete Sale'),
                 ),
               ),
             ],
