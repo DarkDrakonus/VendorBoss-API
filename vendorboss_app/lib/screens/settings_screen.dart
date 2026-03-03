@@ -151,6 +151,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(),
 
           // ── App ──────────────────────────────────────────────────────────
+          _SectionHeader('Security'),
+          ListTile(
+            leading: const Icon(Icons.lock_outline),
+            title: const Text('Change Password'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _openChangePassword(),
+          ),
+
+          const Divider(),
+
           _SectionHeader('App'),
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -168,6 +178,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 40),
         ],
       ),
+    );
+  }
+
+  void _openChangePassword() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.darkSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _ChangePasswordSheet(),
     );
   }
 
@@ -510,6 +532,171 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           fontWeight: FontWeight.w700, fontSize: 16)),
             ),
             const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Change Password Sheet ───────────────────────────────────────────────────
+
+class _ChangePasswordSheet extends StatefulWidget {
+  const _ChangePasswordSheet();
+
+  @override
+  State<_ChangePasswordSheet> createState() => _ChangePasswordSheetState();
+}
+
+class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
+  final _formKey    = GlobalKey<FormState>();
+  final _currentCtrl = TextEditingController();
+  final _newCtrl     = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _saving       = false;
+  bool _showCurrent  = false;
+  bool _showNew      = false;
+  bool _showConfirm  = false;
+
+  @override
+  void dispose() {
+    _currentCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await ApiService.instance.changePassword(
+        currentPassword: _currentCtrl.text,
+        newPassword:     _newCtrl.text,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Password changed successfully'),
+        backgroundColor: AppColors.success,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString()),
+        backgroundColor: AppColors.danger,
+      ));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          24, 20, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.darkDivider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('Change Password',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 20),
+
+            // Current password
+            TextFormField(
+              controller: _currentCtrl,
+              obscureText: !_showCurrent,
+              decoration: InputDecoration(
+                labelText: 'Current Password',
+                suffixIcon: IconButton(
+                  icon: Icon(_showCurrent
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                  onPressed: () => setState(() => _showCurrent = !_showCurrent),
+                ),
+              ),
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Enter your current password' : null,
+            ),
+            const SizedBox(height: 16),
+
+            // New password
+            TextFormField(
+              controller: _newCtrl,
+              obscureText: !_showNew,
+              decoration: InputDecoration(
+                labelText: 'New Password',
+                suffixIcon: IconButton(
+                  icon: Icon(_showNew
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                  onPressed: () => setState(() => _showNew = !_showNew),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Enter a new password';
+                if (v.length < 10) return 'At least 10 characters';
+                if (!v.contains(RegExp(r'[A-Z]'))) return 'Needs an uppercase letter';
+                if (!v.contains(RegExp(r'[a-z]'))) return 'Needs a lowercase letter';
+                if (!v.contains(RegExp(r'[0-9]'))) return 'Needs a number';
+                if (!v.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]')))
+                  return 'Needs a special character';
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Confirm password
+            TextFormField(
+              controller: _confirmCtrl,
+              obscureText: !_showConfirm,
+              decoration: InputDecoration(
+                labelText: 'Confirm New Password',
+                suffixIcon: IconButton(
+                  icon: Icon(_showConfirm
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                  onPressed: () => setState(() => _showConfirm = !_showConfirm),
+                ),
+              ),
+              validator: (v) => v != _newCtrl.text ? 'Passwords do not match' : null,
+            ),
+            const SizedBox(height: 28),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.black,
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        height: 20, width: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.black))
+                    : const Text('Update Password',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 16)),
+              ),
+            ),
           ],
         ),
       ),

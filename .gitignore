@@ -55,3 +55,22 @@ htmlcov/
 
 # Deployment
 deploy.sh
+
+# Large ML model files — use Git LFS or store separately
+*.pkl
+*.msgpack
+*.h5
+*.pt
+*.pth
+*.onnx
+*.bin
+*.weights
+
+# ONNX runtime frameworks
+*.xcframework/
+
+# ScanBoss model directories
+ScanBoss/models/
+ScanBossCSharp/ScanBoss/Models/
+ScanBossCSharp/ScanBoss/bin/
+ScanBossCSharp/ScanBoss/obj/

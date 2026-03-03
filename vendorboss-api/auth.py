@@ -104,6 +104,26 @@ def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.put("/me/password", status_code=204)
+def change_password(
+    data: PasswordChange,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Change current user password"""
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(data.new_password) < 10:
+        raise HTTPException(status_code=400, detail="Password must be at least 10 characters")
+    current_user.password_hash = get_password_hash(data.new_password)
+    db.commit()
+
+
 class UserUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None

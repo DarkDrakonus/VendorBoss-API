@@ -336,6 +336,16 @@ class ApiService {
 
   // ── User profile ──────────────────────────────────────────────────────────
 
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _put('/api/auth/me/password', {
+      'current_password': currentPassword,
+      'new_password':     newPassword,
+    });
+  }
+
   Future<AppUser> updateProfile({
     String? firstName,
     String? lastName,
