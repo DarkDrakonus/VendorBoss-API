@@ -9,7 +9,9 @@ class ApiConfig {
 
   static const String baseUrl = _localUrl;
 
-  // Endpoints — trailing slashes prevent 307 redirects which drop auth headers
+  // Endpoints
+  // List/create endpoints use trailing slash to avoid 307 redirects dropping auth headers.
+  // Item endpoints (/{id}) must NOT have trailing slash — the ID segment serves that purpose.
   static const String login      = '/api/auth/login';
   static const String register   = '/api/auth/register';
   static const String me         = '/api/auth/me';
@@ -17,7 +19,7 @@ class ApiConfig {
   static const String shows      = '/shows/';
   static const String sales      = '/sales/';
   static const String expenses   = '/expenses/';
-  static const String reports    = '/reports/';
-  static const String cards      = '/cards/';
+  static const String reports    = '/reports';
+  static const String cards      = '/cards';
   static const String scan       = '/scan/';
 }

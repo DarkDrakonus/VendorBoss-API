@@ -96,7 +96,7 @@ class ApiService {
   }
 
   Future<InventoryItem> getInventoryItem(String inventoryId) async {
-    final data = await _get('${ApiConfig.inventory}/$inventoryId');
+    final data = await _get('/inventory/$inventoryId');
     return InventoryItem.fromApiJson(data);
   }
 
@@ -129,12 +129,12 @@ class ApiService {
     String inventoryId,
     Map<String, dynamic> updates,
   ) async {
-    final data = await _put('${ApiConfig.inventory}/$inventoryId', updates);
+    final data = await _put('/inventory/$inventoryId', updates);
     return InventoryItem.fromApiJson(data);
   }
 
   Future<void> deleteInventoryItem(String inventoryId) =>
-      _delete('${ApiConfig.inventory}/$inventoryId');
+      _delete('/inventory/$inventoryId');
 
   // ── Shows ──────────────────────────────────────────────────────────────────
 
@@ -251,7 +251,7 @@ class ApiService {
   }
 
   Future<void> voidSale(String transactionId) =>
-      _delete('${ApiConfig.sales}/$transactionId');
+      _delete('/sales/$transactionId');
 
   // ── Expenses ───────────────────────────────────────────────────────────────
 
@@ -293,7 +293,7 @@ class ApiService {
     String? notes,
     DateTime? expenseDate,
   }) async {
-    final data = await _put('${ApiConfig.expenses}/$expenseId', {
+    final data = await _put('/expenses/$expenseId', {
       'expense_type':   type,
       'description':    description,
       'amount':         amount,
@@ -305,7 +305,7 @@ class ApiService {
   }
 
   Future<void> deleteExpense(String expenseId) =>
-      _delete('${ApiConfig.expenses}/$expenseId');
+      _delete('/expenses/$expenseId');
 
   // ── Reports ────────────────────────────────────────────────────────────────
 
