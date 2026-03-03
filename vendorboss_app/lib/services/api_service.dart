@@ -284,6 +284,26 @@ class ApiService {
     return Expense.fromApiJson(data);
   }
 
+  Future<Expense> updateExpense({
+    required String expenseId,
+    required String type,
+    required String description,
+    required double amount,
+    String paymentMethod = 'cash',
+    String? notes,
+    DateTime? expenseDate,
+  }) async {
+    final data = await _put('${ApiConfig.expenses}/$expenseId', {
+      'expense_type':   type,
+      'description':    description,
+      'amount':         amount,
+      'payment_method': paymentMethod,
+      'notes':          notes,
+      'expense_date':   expenseDate?.toIso8601String().split('T')[0],
+    });
+    return Expense.fromApiJson(data);
+  }
+
   Future<void> deleteExpense(String expenseId) =>
       _delete('${ApiConfig.expenses}/$expenseId');
 

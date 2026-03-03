@@ -63,19 +63,31 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     setState(() => _saving = true);
     try {
-      await ApiService.instance.addExpense(
-        type:          _selectedType,
-        description:   _descriptionController.text.trim(),
-        amount:        amount,
-        showId:        widget.show?.id,
-        paymentMethod: _paymentMethod,
-        notes:         _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        expenseDate:   _expenseDate,
-      );
+      if (_isEditing) {
+        await ApiService.instance.updateExpense(
+          expenseId:     widget.existingExpense!.id,
+          type:          _selectedType,
+          description:   _descriptionController.text.trim(),
+          amount:        amount,
+          paymentMethod: _paymentMethod,
+          notes:         _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+          expenseDate:   _expenseDate,
+        );
+      } else {
+        await ApiService.instance.addExpense(
+          type:          _selectedType,
+          description:   _descriptionController.text.trim(),
+          amount:        amount,
+          showId:        widget.show?.id,
+          paymentMethod: _paymentMethod,
+          notes:         _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+          expenseDate:   _expenseDate,
+        );
+      }
       if (!mounted) return;
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('\${amount.toStringAsFixed(2)} $_typeLabel logged'),
+        content: Text(_isEditing ? 'Expense updated' : '\${amount.toStringAsFixed(2)} $_typeLabel logged'),
         backgroundColor: AppColors.success,
       ));
     } catch (e) {

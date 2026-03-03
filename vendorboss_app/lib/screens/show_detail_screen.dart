@@ -68,6 +68,15 @@ class _ShowDetailScreenState extends State<ShowDetailScreen>
     }
   }
 
+  void _openEditExpense(Expense expense) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => AddExpenseScreen(existingExpense: expense)),
+    );
+    _load();
+  }
+
   void _openAddExpense() async {
     await Navigator.push(
       context,
@@ -220,6 +229,7 @@ class _ShowDetailScreenState extends State<ShowDetailScreen>
                         currency: currency,
                         timeFormat: timeFormat,
                         onAddExpense: _isActive ? _openAddExpense : null,
+                        onEditExpense: _openEditExpense,
                       ),
                     ],
                   ),
@@ -683,12 +693,14 @@ class _ExpensesTab extends StatelessWidget {
   final NumberFormat currency;
   final DateFormat timeFormat;
   final VoidCallback? onAddExpense;
+  final void Function(Expense)? onEditExpense;
 
   const _ExpensesTab({
     required this.expenses,
     required this.currency,
     required this.timeFormat,
     this.onAddExpense,
+    this.onEditExpense,
   });
 
   @override
@@ -751,51 +763,55 @@ class _ExpensesTab extends StatelessWidget {
               final expense = expenses[index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(children: [
-                    CircleAvatar(
-                      backgroundColor:
-                          AppColors.warning.withOpacity(0.15),
-                      child: Icon(_typeIcon(expense.type),
-                          color: AppColors.warning, size: 18),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(expense.description,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: onEditExpense != null ? () => onEditExpense!(expense) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(children: [
+                      CircleAvatar(
+                        backgroundColor:
+                            AppColors.warning.withOpacity(0.15),
+                        child: Icon(_typeIcon(expense.type),
+                            color: AppColors.warning, size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(expense.description,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            Text(
+                              '${expense.typeDisplay} · ${DateFormat('MMM d').format(expense.expenseDate)}',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.w600)),
+                                  fontSize: 12,
+                                  color: AppColors.darkTextSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
                           Text(
-                            '${expense.typeDisplay} · ${DateFormat('MMM d').format(expense.expenseDate)}',
+                            currency.format(expense.amount),
                             style: const TextStyle(
-                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                                color: AppColors.warning),
+                          ),
+                          Text(
+                            expense.paymentMethod.toUpperCase(),
+                            style: const TextStyle(
+                                fontSize: 10,
                                 color: AppColors.darkTextSecondary),
                           ),
                         ],
                       ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          currency.format(expense.amount),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              color: AppColors.warning),
-                        ),
-                        Text(
-                          expense.paymentMethod.toUpperCase(),
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: AppColors.darkTextSecondary),
-                        ),
-                      ],
-                    ),
-                  ]),
+                    ]),
+                  ),
                 ),
               );
             },
