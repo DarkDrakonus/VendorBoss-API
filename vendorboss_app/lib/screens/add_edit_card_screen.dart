@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:uuid/uuid.dart';
 import '../theme/app_theme.dart';
 import '../models/inventory_item.dart';
 import '../config/app_config.dart';
 import '../config/card_variants.dart';
+import '../services/api_service.dart';
 import 'card_recognition_screen.dart';
 import 'card_scan_screen.dart'; // ScanResult + ScannedCardData types
 
@@ -22,7 +22,6 @@ class AddEditCardScreen extends StatefulWidget {
 
 class _AddEditCardScreenState extends State<AddEditCardScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _uuid = const Uuid();
 
   final _cardNameController    = TextEditingController();
   final _setNameController     = TextEditingController();
@@ -32,6 +31,10 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
   final _askingPriceController = TextEditingController();
   final _notesController       = TextEditingController();
   final _gradeController       = TextEditingController();
+
+  // Add mode — product selected from catalog search
+  String? _selectedProductId;
+  bool _saving = false;
 
   String _selectedGame    = AppConfig.allGames.first;
   String _condition       = 'NM';
@@ -60,6 +63,7 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
 
   void _populateFromExisting() {
     final item = widget.existingItem!;
+    _selectedProductId = item.cardId; // product_id for API
     _cardNameController.text   = item.cardName;
     _setNameController.text    = item.setName;
     _cardNumberController.text = item.cardNumber;
@@ -109,43 +113,67 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final now  = DateTime.now();
-    final item = InventoryItem(
-      id:             widget.existingItem?.id ?? _uuid.v4(),
-      cardId:         widget.existingItem?.cardId ?? _uuid.v4(),
-      cardName:       _cardNameController.text.trim(),
-      game:           _selectedGame,
-      setName:        _setNameController.text.trim(),
-      cardNumber:     _cardNumberController.text.trim(),
-      finish:         _finish,
-      condition:      _condition,
-      language:       _language,
-      isGraded:       _isGraded,
-      gradingCompany: _isGraded ? _gradingCompany : null,
-      grade:          _isGraded && _gradeController.text.isNotEmpty
-                        ? _gradeController.text.trim()
-                        : null,
-      quantity:       _quantity,
-      purchasePrice:  double.tryParse(_purchasePriceController.text),
-      marketPrice:    double.tryParse(_marketPriceController.text),
-      askingPrice:    double.tryParse(_askingPriceController.text),
-      notes:          _notesController.text.trim().isEmpty
-                        ? null
-                        : _notesController.text.trim(),
-      acquiredDate:   _acquiredDate,
-      createdAt:      widget.existingItem?.createdAt ?? now,
-    );
+    // Add mode requires a product selected from the catalog
+    if (!widget.isEditing && _selectedProductId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Search for and select a card from the catalog first'),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
 
-    Navigator.pop(context, item);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(widget.isEditing
-          ? '${item.cardName} updated'
-          : '${item.cardName} added to inventory'),
-      backgroundColor: AppColors.success,
-    ));
+    setState(() => _saving = true);
+    try {
+      if (widget.isEditing) {
+        final updated = await ApiService.instance.updateInventoryItem(
+          widget.existingItem!.id,
+          {
+            'quantity':             _quantity,
+            'condition':            _condition,
+            'asking_price':         double.tryParse(_askingPriceController.text),
+            'current_market_price': double.tryParse(_marketPriceController.text),
+            'notes': _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
+          },
+        );
+        if (!mounted) return;
+        Navigator.pop(context, updated);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${updated.cardName} updated'),
+          backgroundColor: AppColors.success,
+        ));
+      } else {
+        final added = await ApiService.instance.addInventoryItem(
+          productId:     _selectedProductId!,
+          quantity:      _quantity,
+          purchasePrice: double.tryParse(_purchasePriceController.text),
+          askingPrice:   double.tryParse(_askingPriceController.text),
+          condition:     _condition,
+          notes: _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
+          acquiredDate:  _acquiredDate,
+        );
+        if (!mounted) return;
+        Navigator.pop(context, added);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${added.cardName} added to inventory'),
+          backgroundColor: AppColors.success,
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Failed to save: $e'),
+        backgroundColor: AppColors.danger,
+      ));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _openScanner() async {
@@ -236,9 +264,20 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
-              Navigator.pop(context, 'deleted');
+              try {
+                await ApiService.instance
+                    .deleteInventoryItem(widget.existingItem!.id);
+                if (!mounted) return;
+                Navigator.pop(context, 'deleted');
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Failed to remove: $e'),
+                  backgroundColor: AppColors.danger,
+                ));
+              }
             },
             child: const Text('Remove'),
           ),
@@ -296,9 +335,24 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
           padding: const EdgeInsets.all(16),
           children: [
 
-            // Scan CTA — shown in Add mode at top of form
+            // ── Add mode: scan + catalog search ─────────────────────────
             if (!widget.isEditing) ...[
               _ScanBanner(onTap: _openScanner),
+              const SizedBox(height: 16),
+              _CardSearchWidget(
+                selectedProductId: _selectedProductId,
+                selectedName: _cardNameController.text.isNotEmpty
+                    ? _cardNameController.text : null,
+                onSelected: (productId, cardName, setName, game, cardNumber) {
+                  setState(() {
+                    _selectedProductId         = productId;
+                    _cardNameController.text   = cardName;
+                    _setNameController.text    = setName;
+                    _cardNumberController.text = cardNumber;
+                    if (game.isNotEmpty) _onGameChanged(game);
+                  });
+                },
+              ),
               const SizedBox(height: 24),
             ],
 
@@ -306,71 +360,89 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
             const _SectionLabel('Card Identity'),
             const SizedBox(height: 12),
 
-            _FieldLabel('Game'),
-            const SizedBox(height: 6),
-            _GameSelector(
-              selected:  _selectedGame,
-              onChanged: _onGameChanged,
-            ),
-
-            const SizedBox(height: 16),
-
-            _FieldLabel('Card Name'),
-            const SizedBox(height: 6),
-            TextFormField(
-              controller:            _cardNameController,
-              autofocus:             !widget.isEditing,
-              textCapitalization:    TextCapitalization.words,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Charizard, Black Lotus, Connor McDavid...',
+            if (widget.isEditing) ...[  // Edit: read-only card details
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.darkSurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.existingItem!.cardName,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${widget.existingItem!.game} · '
+                      '${widget.existingItem!.setName} · '
+                      '#${widget.existingItem!.cardNumber}',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Card name is required'
-                  : null,
-            ),
-
-            const SizedBox(height: 16),
-
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _FieldLabel('Set / Series'),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller:         _setNameController,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. Base Set, Alpha...',
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Required' : null,
-                      ),
-                    ],
-                  ),
+            ] else if (_selectedProductId != null) ...[  // Add: selected card
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.accent.withOpacity(0.3)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _FieldLabel('Card #'),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _cardNumberController,
-                        decoration:
-                            const InputDecoration(hintText: 'e.g. 4/102'),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle,
+                        color: AppColors.accent, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_cardNameController.text,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700)),
+                          Text(
+                            '$_selectedGame · ${_setNameController.text}',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary, fontSize: 12),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _selectedProductId = null;
+                        _cardNameController.clear();
+                        _setNameController.clear();
+                        _cardNumberController.clear();
+                      }),
+                      child: const Text('Change',
+                          style: TextStyle(color: AppColors.accent)),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ] else ...[  // Add: no card selected yet
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.darkSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.darkDivider),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.search, color: AppColors.textSecondary, size: 18),
+                    SizedBox(width: 10),
+                    Text('Search for a card above to continue',
+                        style: TextStyle(color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+            ],
 
             const SizedBox(height: 28),
 
@@ -712,17 +784,22 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
 
             // ── Save ──────────────────────────────────────────────────────
             ElevatedButton(
-              onPressed: _save,
+              onPressed: _saving ? null : _save,
               style: ElevatedButton.styleFrom(
                 padding:         const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.black,
               ),
-              child: Text(
-                widget.isEditing ? 'Save Changes' : 'Add to Inventory',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 16),
-              ),
+              child: _saving
+                  ? const SizedBox(
+                      height: 20, width: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.black))
+                  : Text(
+                      widget.isEditing ? 'Save Changes' : 'Add to Inventory',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 16),
+                    ),
             ),
 
             if (widget.isEditing) ...[
@@ -747,6 +824,228 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
       ),
     );
   }
+}
+
+// ── Card Search Widget ──────────────────────────────────────────────────────────
+// Searches the card catalog and lets the vendor select the card to add.
+
+class _CardSearchWidget extends StatefulWidget {
+  final String? selectedProductId;
+  final String? selectedName;
+  final void Function(
+    String productId,
+    String cardName,
+    String setName,
+    String game,
+    String cardNumber,
+  ) onSelected;
+
+  const _CardSearchWidget({
+    required this.selectedProductId,
+    required this.selectedName,
+    required this.onSelected,
+  });
+
+  @override
+  State<_CardSearchWidget> createState() => _CardSearchWidgetState();
+}
+
+class _CardSearchWidgetState extends State<_CardSearchWidget> {
+  final _ctrl = TextEditingController();
+  List<_SearchResult> _results = [];
+  bool _loading = false;
+  String _lastQuery = '';
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search(String q) async {
+    final trimmed = q.trim();
+    if (trimmed == _lastQuery) return;
+    _lastQuery = trimmed;
+
+    if (trimmed.length < 2) {
+      setState(() { _results = []; _loading = false; });
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await Future.delayed(const Duration(milliseconds: 350)); // debounce
+      if (trimmed != _lastQuery || !mounted) return; // stale
+
+      final data = await ApiService.instance.searchCards(trimmed, limit: 15);
+      if (!mounted) return;
+
+      final results = <_SearchResult>[];
+
+      // TCG cards
+      for (final c in (data['tcg_cards'] as List<dynamic>? ?? [])) {
+        results.add(_SearchResult(
+          productId:  c['product_id'] ?? '',
+          name:       c['card_name'] ?? '',
+          subtitle:   c['set_id'] ?? '',
+          cardNumber: c['card_number'] ?? '',
+          game:       '',   // enriched by inventory endpoint after save
+          isTcg:      true,
+        ));
+      }
+
+      // Sports cards
+      for (final c in (data['sports_cards'] as List<dynamic>? ?? [])) {
+        final year  = c['year']?.toString() ?? '';
+        final team  = c['team']  as String? ?? '';
+        results.add(_SearchResult(
+          productId:  c['product_id'] ?? '',
+          name:       c['player'] ?? '',
+          subtitle:   [year, team].where((s) => s.isNotEmpty).join(' · '),
+          cardNumber: c['card_number'] ?? '',
+          game:       '',
+          isTcg:      false,
+        ));
+      }
+
+      setState(() { _results = results; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // If card already selected, don't show search
+    if (widget.selectedProductId != null) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        TextField(
+          controller: _ctrl,
+          autofocus:  true,
+          onChanged:  _search,
+          decoration: InputDecoration(
+            hintText:   'Search card name, player, set...',
+            prefixIcon: const Icon(Icons.search,
+                color: AppColors.textSecondary, size: 20),
+            suffixIcon: _loading
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.accent),
+                    ),
+                  )
+                : (_ctrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _ctrl.clear();
+                          setState(() { _results = []; _lastQuery = ''; });
+                        },
+                      )
+                    : null),
+          ),
+        ),
+        if (_results.isNotEmpty) ...[  
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.darkSurface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.darkDivider),
+            ),
+            child: Column(
+              children: [
+                for (int i = 0; i < _results.length; i++) ...[  
+                  if (i > 0)
+                    const Divider(height: 1, indent: 48),
+                  ListTile(
+                    dense: true,
+                    leading: Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(
+                        color: (_results[i].isTcg
+                            ? AppColors.accent
+                            : AppColors.info).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        _results[i].isTcg
+                            ? Icons.style_outlined
+                            : Icons.sports_baseball_outlined,
+                        size: 16,
+                        color: _results[i].isTcg
+                            ? AppColors.accent
+                            : AppColors.info,
+                      ),
+                    ),
+                    title: Text(_results[i].name,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: _results[i].subtitle.isNotEmpty
+                        ? Text(_results[i].subtitle,
+                            style: const TextStyle(
+                                color: AppColors.textSecondary, fontSize: 11))
+                        : null,
+                    trailing: _results[i].cardNumber.isNotEmpty
+                        ? Text('#${_results[i].cardNumber}',
+                            style: const TextStyle(
+                                color: AppColors.textSecondary, fontSize: 12))
+                        : null,
+                    onTap: () => widget.onSelected(
+                      _results[i].productId,
+                      _results[i].name,
+                      _results[i].subtitle,
+                      _results[i].game,
+                      _results[i].cardNumber,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ] else if (_ctrl.text.length >= 2 && !_loading) ...[  
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.darkSurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.search_off_outlined,
+                    color: AppColors.textSecondary, size: 18),
+                SizedBox(width: 10),
+                Text('No cards found — try a different name',
+                    style: TextStyle(color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SearchResult {
+  final String productId;
+  final String name;
+  final String subtitle;
+  final String cardNumber;
+  final String game;
+  final bool isTcg;
+
+  const _SearchResult({
+    required this.productId,
+    required this.name,
+    required this.subtitle,
+    required this.cardNumber,
+    required this.game,
+    required this.isTcg,
+  });
 }
 
 // ── Scan Banner ───────────────────────────────────────────────────────────────

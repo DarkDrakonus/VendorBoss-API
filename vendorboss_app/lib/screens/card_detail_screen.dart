@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../models/inventory_item.dart';
 import '../models/listing.dart';
-import '../services/mock_data_service.dart';
+
 import 'add_edit_card_screen.dart';
 
 class CardDetailScreen extends StatefulWidget {
@@ -24,7 +24,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _listings = MockDataService.listingsForItem(widget.item.id);
+    _listings = []; // Listings populated via Listing Management screen
   }
 
   // Simulates pulling a listing (cancelling it on the platform)
