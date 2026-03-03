@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../models/show.dart';
 import '../config/app_config.dart';
+import '../services/api_service.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   final Show? show; // null = general expense not tied to a show
@@ -26,6 +27,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   DateTime _expenseDate = DateTime.now();
 
   bool get _isEditing => widget.existingExpense != null;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -54,25 +56,37 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             orElse: () => AppConfig.expenseTypes.first)['label']!;
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-
     final amount = double.tryParse(_amountController.text);
     if (amount == null || amount <= 0) return;
 
-    // TODO: Save to API
-    Navigator.pop(context, true); // return true = saved
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isEditing
-              ? 'Expense updated'
-              : '\$${amount.toStringAsFixed(2)} $_typeLabel logged',
-        ),
+    setState(() => _saving = true);
+    try {
+      await ApiService.instance.addExpense(
+        type:          _selectedType,
+        description:   _descriptionController.text.trim(),
+        amount:        amount,
+        showId:        widget.show?.id,
+        paymentMethod: _paymentMethod,
+        notes:         _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        expenseDate:   _expenseDate,
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('\${amount.toStringAsFixed(2)} $_typeLabel logged'),
         backgroundColor: AppColors.success,
-      ),
-    );
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Failed to save: $e'),
+        backgroundColor: AppColors.danger,
+      ));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -113,7 +127,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         title: Text(_isEditing ? 'Edit Expense' : 'Add Expense'),
         actions: [
           TextButton(
-            onPressed: _save,
+            onPressed: _saving ? null : _save,
             child: const Text(
               'Save',
               style: TextStyle(
@@ -398,19 +412,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Expense'),
-        content: const Text(
-            'Are you sure you want to delete this expense? This cannot be undone.'),
+        content: const Text('Are you sure? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () async {
               Navigator.pop(ctx);
-              Navigator.pop(context, 'deleted');
+              try {
+                await ApiService.instance
+                    .deleteExpense(widget.existingExpense!.id);
+                if (!mounted) return;
+                Navigator.pop(context, 'deleted');
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Failed to delete: $e'),
+                  backgroundColor: AppColors.danger,
+                ));
+              }
             },
             child: const Text('Delete'),
           ),
