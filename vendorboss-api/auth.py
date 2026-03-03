@@ -100,3 +100,36 @@ def login(form_data: schemas.UserLogin, db: Session = Depends(get_db)):
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     """Get current user information"""
     return current_user
+
+
+class UserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    business_name: Optional[str] = None
+    email: Optional[str] = None
+
+
+@router.put("/me", response_model=schemas.User)
+def update_profile(
+    updates: UserUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update current user profile"""
+    if updates.email and updates.email != current_user.email:
+        existing = db.query(models.User).filter(
+            models.User.email == updates.email,
+            models.User.user_id != current_user.user_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        current_user.email = updates.email
+    if updates.first_name is not None:
+        current_user.first_name = updates.first_name
+    if updates.last_name is not None:
+        current_user.last_name = updates.last_name
+    if updates.business_name is not None:
+        current_user.business_name = updates.business_name
+    db.commit()
+    db.refresh(current_user)
+    return current_user

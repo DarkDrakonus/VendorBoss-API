@@ -57,6 +57,8 @@ class AuthService {
     }
   }
 
+  Future<void> updateCachedUser(AppUser user) => _saveUser(user);
+
   Future<void> _saveUser(AppUser user) =>
       _storage.write(key: _userKey, value: jsonEncode({
         'id':                user.id,

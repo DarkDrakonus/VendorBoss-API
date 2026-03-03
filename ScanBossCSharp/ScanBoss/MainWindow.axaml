@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ScanBoss.ViewModels"
+        x:Class="ScanBoss.MainWindow"
+        Title="ScanBoss AI - Card Scanner"
+        Width="1400" Height="800"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+        
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#2196F3" Padding="16">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="20">
+                    <TextBlock Text="🎴 ScanBoss AI" 
+                              FontSize="24" 
+                              FontWeight="Bold" 
+                              VerticalAlignment="Center"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="Game:" 
+                                  FontSize="14" 
+                                  VerticalAlignment="Center"/>
+
+                        <ComboBox x:Name="GameComboBox"
+                                 MinWidth="200"
+                                 VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <TextBlock Grid.Column="1" 
+                          x:Name="StatusLabel"
+                          FontSize="14"
+                          VerticalAlignment="Center"
+                          Margin="20,0"/>
+
+                <TextBlock Grid.Column="2" 
+                          x:Name="CardCountLabel"
+                          FontSize="14"
+                          FontWeight="Bold"
+                          Foreground="#00E5FF"
+                          VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <TabControl Grid.Row="1" Margin="10">
+            
+            <!-- Live Camera Tab -->
+            <TabItem Header="📹 Live Camera">
+                <Grid>
+                    <TextBlock Text="📹 Live Camera View Coming Soon..."
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              FontSize="24"
+                              Opacity="0.5"/>
+                </Grid>
+            </TabItem>
+
+            <!-- Batch Scan Tab -->
+            <TabItem Header="📁 Batch Scan">
+                <Grid>
+                    <TextBlock Text="📁 Batch Scan View Coming Soon..."
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              FontSize="24"
+                              Opacity="0.5"/>
+                </Grid>
+            </TabItem>
+            
+        </TabControl>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Background="#1976D2" Padding="10">
+            <TextBlock Text="Ready to scan cards! Select a game above to begin." 
+                      HorizontalAlignment="Center"/>
+        </Border>
+        
+    </Grid>
+    
+</Window>

@@ -334,6 +334,38 @@ class ApiService {
         params: year != null ? {'year': '$year'} : null);
   }
 
+  // ── User profile ──────────────────────────────────────────────────────────
+
+  Future<AppUser> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? businessName,
+    String? email,
+  }) async {
+    final data = await _put('/api/auth/me', {
+      if (firstName    != null) 'first_name':    firstName,
+      if (lastName     != null) 'last_name':     lastName,
+      if (businessName != null) 'business_name': businessName,
+      if (email        != null) 'email':         email,
+    });
+    final user = AppUser(
+      id:               data['user_id'] ?? '',
+      email:            data['email'] ?? '',
+      username:         data['username'],
+      firstName:        data['first_name'],
+      lastName:         data['last_name'],
+      businessName:     data['business_name'],
+      subscriptionTier: 'free',
+      cardCount:        0,
+      isVerified:       data['is_verified'] ?? false,
+      createdAt:        DateTime.parse(
+                          data['created_at'] ?? DateTime.now().toIso8601String()),
+    );
+    // Refresh cached user
+    await AuthService.instance.updateCachedUser(user);
+    return user;
+  }
+
   // ── Card search ────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> searchCards(
