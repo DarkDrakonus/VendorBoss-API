@@ -557,6 +557,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
   bool _showCurrent  = false;
   bool _showNew      = false;
   bool _showConfirm  = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -568,7 +569,7 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+    setState(() { _saving = true; _errorMessage = null; });
     try {
       await ApiService.instance.changePassword(
         currentPassword: _currentCtrl.text,
@@ -576,16 +577,14 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
       );
       if (!mounted) return;
       Navigator.pop(context);
+      // Show success on the parent Settings scaffold
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Password changed successfully'),
         backgroundColor: AppColors.success,
       ));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(e.toString()),
-        backgroundColor: AppColors.danger,
-      ));
+      setState(() => _errorMessage = e.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -677,6 +676,30 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
               validator: (v) => v != _newCtrl.text ? 'Passwords do not match' : null,
             ),
             const SizedBox(height: 28),
+
+            if (_errorMessage != null)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.danger.withOpacity(0.4)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.error_outline,
+                      color: AppColors.danger, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(
+                          color: AppColors.danger, fontSize: 13),
+                    ),
+                  ),
+                ]),
+              ),
 
             SizedBox(
               width: double.infinity,
