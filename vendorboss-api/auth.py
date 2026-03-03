@@ -7,7 +7,9 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional
 import os
 
 import models
