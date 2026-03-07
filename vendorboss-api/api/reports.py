@@ -164,7 +164,7 @@ def financial_summary(
         func.coalesce(
             func.sum(models.Inventory.purchase_price * models.InventoryTransaction.quantity), 0
         )
-    ).join(
+    ).select_from(models.InventoryTransaction).join(
         models.Inventory,
         models.InventoryTransaction.inventory_id == models.Inventory.inventory_id
     ).filter(
@@ -297,7 +297,7 @@ def top_performers(
         func.sum(models.InventoryTransaction.quantity).label("units_sold"),
         models.Inventory.purchase_price,
         models.Inventory.product_id
-    ).join(
+    ).select_from(models.InventoryTransaction).join(
         models.Inventory,
         models.InventoryTransaction.inventory_id == models.Inventory.inventory_id
     ).filter(
