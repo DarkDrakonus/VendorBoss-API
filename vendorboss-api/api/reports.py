@@ -544,12 +544,12 @@ def bulk_sales(
 
     for txn in all_txns:
         amount = Decimal(str(txn.total_amount or 0))
-        show_key = txn.show_id or "__general__"
+        show_key = txn.show_name or "__general__"
         show_name = txn.show_name or "General Sales"
 
         if show_key not in show_data:
             show_data[show_key] = {
-                "show_id": txn.show_id,
+                "show_id": None,
                 "show_name": show_name,
                 "bulk_rev": Decimal("0"),
                 "single_rev": Decimal("0"),
