@@ -1,431 +1,417 @@
 -- ============================================================================
--- VENDORBOSS DATABASE SCHEMA - MULTI-GAME EDITION
--- Designed for Pokemon, Magic the Gathering, FFTCG, and extensibility
+-- VENDORBOSS 2.0 DATABASE SCHEMA
+-- Updated to match models.py implementation
 -- ============================================================================
 
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- ============================================================================
--- PART 1: GAME CONFIGURATION
+-- CORE REFERENCE TABLES
 -- ============================================================================
 
-CREATE TABLE games (
-    game_id VARCHAR(20) PRIMARY KEY,  -- "Pokemon", "MagicTG", "FFTCG", "OnePiece"
-    full_name VARCHAR(100) NOT NULL,
-    publisher VARCHAR(100),
-    
-    -- Game characteristics
-    uses_set_symbols BOOLEAN DEFAULT false,  -- true for Pokemon/MtG, false for FFTCG
-    set_code_format VARCHAR(50),            -- "text", "image_symbol", "hybrid"
-    
-    -- Where to find identifiers on card
-    set_indicator_location VARCHAR(50),     -- "bottom_center", "center_right", "bottom_left"
-    card_number_location VARCHAR(50),
-    rarity_indicator_location VARCHAR(50),
-    
-    active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT NOW()
+CREATE TABLE categories (
+    category_id SERIAL PRIMARY KEY,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
+    category_type VARCHAR(20) NOT NULL DEFAULT 'tcg',  -- tcg, sports, non_sport
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Set symbol images (for Pokemon, MtG, etc.)
-CREATE TABLE set_symbols (
-    symbol_id SERIAL PRIMARY KEY,
-    game_id VARCHAR(20) REFERENCES games(game_id),
-    set_code VARCHAR(20) NOT NULL,        -- "BS", "NEO", "SWSH12"
-    
-    -- Symbol data
-    symbol_image_url VARCHAR(500),        -- URL to reference image
-    symbol_hash VARCHAR(64),              -- Perceptual hash for matching
-    symbol_features JSONB,                -- ML features if using CNN
-    
-    -- Metadata
-    symbol_position VARCHAR(50),          -- Where on card this appears
-    introduced_date DATE,
-    
-    UNIQUE(game_id, set_code)
+CREATE TABLE brands (
+    brand_id SERIAL PRIMARY KEY,
+    brand_name VARCHAR(100) NOT NULL UNIQUE,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX idx_symbols_game ON set_symbols(game_id);
-CREATE INDEX idx_symbols_hash ON set_symbols(symbol_hash);
 
--- Card sets (expansions, series)
-CREATE TABLE card_sets (
+CREATE TABLE sets (
     set_id SERIAL PRIMARY KEY,
-    game_id VARCHAR(20) REFERENCES games(game_id),
-    set_code VARCHAR(20) NOT NULL,        -- "1", "BS", "NEO", "OP01"
-    set_name VARCHAR(200),
-    
-    -- Set info
-    release_date DATE,
-    total_cards INT,
-    
-    -- For symbol matching
-    symbol_id INT REFERENCES set_symbols(symbol_id),
-    
-    UNIQUE(game_id, set_code)
+    set_name VARCHAR(200) NOT NULL,
+    set_code VARCHAR(30),
+    set_year INTEGER NOT NULL,
+    category_id INTEGER REFERENCES categories(category_id),
+    brand_id INTEGER REFERENCES brands(brand_id),
+    total_cards INTEGER,
+    release_date TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-CREATE INDEX idx_sets_game ON card_sets(game_id);
-CREATE INDEX idx_sets_code ON card_sets(set_code);
 
--- ============================================================================
--- PART 2: BASE CARDS (Game-Agnostic)
--- ============================================================================
-
-CREATE TABLE base_cards (
-    base_card_id SERIAL PRIMARY KEY,
-    game_id VARCHAR(20) REFERENCES games(game_id),
-    set_id INT REFERENCES card_sets(set_id),
-    
-    -- Universal identifiers
-    card_number VARCHAR(20) NOT NULL,     -- "001", "025", "045", etc.
-    name VARCHAR(200) NOT NULL,
-    
-    -- Rarity (format varies by game)
-    rarity_code VARCHAR(10),              -- "H", "R", "C", "★", "M", "U"
-    rarity_name VARCHAR(50),              -- "Rare", "Uncommon", "Mythic Rare"
-    
-    -- Standard identifier: "GAME-SET-NUMBER"
-    standard_code VARCHAR(100) GENERATED ALWAYS AS (
-        game_id || '-' || (SELECT set_code FROM card_sets WHERE set_id = base_cards.set_id) || '-' || card_number
-    ) STORED,
-    
-    created_at TIMESTAMP DEFAULT NOW(),
-    
-    UNIQUE(game_id, set_id, card_number)
-);
-CREATE INDEX idx_base_cards_standard_code ON base_cards(standard_code);
-CREATE INDEX idx_base_cards_game_set ON base_cards(game_id, set_id);
-CREATE INDEX idx_base_cards_name ON base_cards(name);
-
--- ============================================================================
--- PART 3: GAME-SPECIFIC ATTRIBUTES (Flexible Schema)
--- ============================================================================
-
--- Flexible attributes for different card games
-CREATE TABLE card_attributes (
-    attribute_id SERIAL PRIMARY KEY,
-    base_card_id INT REFERENCES base_cards(base_card_id) ON DELETE CASCADE,
-    
-    -- All attributes stored as key-value pairs
-    attributes JSONB NOT NULL,
-    
-    -- Common FFTCG attributes (indexed for performance)
-    element VARCHAR(50),
-    cost INT,
-    power INT,
-    card_type VARCHAR(50),
-    
-    -- Common Pokemon attributes (indexed for performance)
-    hp INT,
-    pokemon_type VARCHAR(20),              -- "Fire", "Water", "Grass"
-    stage VARCHAR(20),                     -- "Basic", "Stage 1", "Stage 2"
-    
-    -- Common MtG attributes (indexed for performance)
-    mana_cost VARCHAR(50),
-    color_identity VARCHAR(20),
-    card_type_mtg VARCHAR(100),            -- "Creature - Human Warrior"
-    power_toughness VARCHAR(20),           -- "3/3"
-    
-    UNIQUE(base_card_id)
-);
-CREATE INDEX idx_attributes_base_card ON card_attributes(base_card_id);
-CREATE INDEX idx_attributes_element ON card_attributes(element) WHERE element IS NOT NULL;
-CREATE INDEX idx_attributes_pokemon_type ON card_attributes(pokemon_type) WHERE pokemon_type IS NOT NULL;
-CREATE INDEX idx_attributes_gin ON card_attributes USING gin(attributes);
-
--- ============================================================================
--- PART 4: CARD VARIANTS (The Complex Part)
--- ============================================================================
-
-CREATE TABLE card_variants (
-    variant_id SERIAL PRIMARY KEY,
-    base_card_id INT REFERENCES base_cards(base_card_id) ON DELETE CASCADE,
-    
-    -- Variant characteristics (game-agnostic terms)
-    finish_type VARCHAR(30) DEFAULT 'Standard',  -- "Standard", "Foil", "Holo", "ReverseHolo", "Etched"
-    art_treatment VARCHAR(50) DEFAULT 'Normal',  -- "Normal", "FullArt", "ExtendedArt", "Borderless", "Showcase", "AltArt"
-    special_designation VARCHAR(50),             -- "1stEdition", "Shadowless", "Prerelease", "Promo", "SecretRare"
-    
-    -- Language & edition
-    language VARCHAR(10) DEFAULT 'EN',
-    edition VARCHAR(50),
-    
-    -- Full identifier includes all variant info
-    full_code VARCHAR(200) GENERATED ALWAYS AS (
-        (SELECT standard_code FROM base_cards WHERE base_card_id = card_variants.base_card_id) ||
-        '-' || finish_type || 
-        CASE WHEN art_treatment != 'Normal' THEN '-' || art_treatment ELSE '' END ||
-        CASE WHEN special_designation IS NOT NULL THEN '-' || special_designation ELSE '' END ||
-        CASE WHEN language != 'EN' THEN '-' || language ELSE '' END
-    ) STORED,
-    
-    -- Variant-specific data
-    image_url VARCHAR(500),
-    
-    -- Pricing
-    tcgplayer_product_id VARCHAR(50),
-    market_price DECIMAL(10,2),
-    low_price DECIMAL(10,2),
-    high_price DECIMAL(10,2),
-    price_last_updated TIMESTAMP,
-    
-    -- Rarity factors
-    print_run INT,
-    is_promo BOOLEAN DEFAULT false,
-    is_error BOOLEAN DEFAULT false,
-    
-    -- Game-specific variant data (flexible)
-    variant_details JSONB,
-    
-    created_at TIMESTAMP DEFAULT NOW(),
-    
-    UNIQUE(base_card_id, finish_type, art_treatment, special_designation, language, edition)
-);
-CREATE INDEX idx_variants_full_code ON card_variants(full_code);
-CREATE INDEX idx_variants_base_card ON card_variants(base_card_id);
-CREATE INDEX idx_variants_finish ON card_variants(finish_type);
-CREATE INDEX idx_variants_tcgplayer ON card_variants(tcgplayer_product_id);
-
--- ============================================================================
--- PART 5: DETECTION REFERENCES
--- ============================================================================
-
--- Reference fingerprints for card detection
-CREATE TABLE reference_fingerprints (
-    fingerprint_id SERIAL PRIMARY KEY,
-    variant_id INT REFERENCES card_variants(variant_id) ON DELETE CASCADE,
-    
-    -- Fingerprint data
-    fingerprint JSONB NOT NULL,
-    composite_hash VARCHAR(64),
-    
-    -- What this fingerprint represents
-    fingerprint_type VARCHAR(30),          -- "full_card", "art_only", "text_region"
-    
-    -- Source
-    source_image_url VARCHAR(500),
-    image_quality VARCHAR(20),
-    scan_date TIMESTAMP DEFAULT NOW(),
-    
-    created_at TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX idx_fingerprints_variant ON reference_fingerprints(variant_id);
-CREATE INDEX idx_fingerprints_composite ON reference_fingerprints(composite_hash);
-CREATE INDEX idx_fingerprints_gin ON reference_fingerprints USING gin(fingerprint);
-
--- OCR regions and patterns (game-specific)
-CREATE TABLE detection_config (
-    config_id SERIAL PRIMARY KEY,
-    game_id VARCHAR(20) REFERENCES games(game_id),
-    
-    -- OCR regions (as percentages of card dimensions)
-    set_code_region JSONB,
-    card_number_region JSONB,
-    card_name_region JSONB,
-    
-    -- OCR patterns and whitelists
-    set_code_pattern VARCHAR(200),
-    card_number_pattern VARCHAR(200),
-    ocr_whitelist VARCHAR(200),
-    
-    -- Detection methods
-    uses_set_symbol_matching BOOLEAN DEFAULT false,
-    uses_ocr_text BOOLEAN DEFAULT true,
-    uses_fingerprint_fallback BOOLEAN DEFAULT true,
-    
-    -- Confidence thresholds
-    min_ocr_confidence DECIMAL(3,2) DEFAULT 0.80,
-    min_fingerprint_similarity DECIMAL(3,2) DEFAULT 0.85,
-    
-    created_at TIMESTAMP DEFAULT NOW(),
-    
-    UNIQUE(game_id)
+CREATE TABLE product_types (
+    product_type_id VARCHAR(50) PRIMARY KEY,
+    product_type_name VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- ============================================================================
--- PART 6: USER INVENTORY (Same as before, works for all games)
+-- USERS & AUTHENTICATION
 -- ============================================================================
 
 CREATE TABLE users (
-    user_id SERIAL PRIMARY KEY,
-    username VARCHAR(100) UNIQUE NOT NULL,
+    user_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    username VARCHAR(100) UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    
-    account_type VARCHAR(20) DEFAULT 'free',
-    subscription_expires_at TIMESTAMP,
-    
-    display_name VARCHAR(100),
-    store_name VARCHAR(200),
-    location VARCHAR(200),
-    
-    created_at TIMESTAMP DEFAULT NOW(),
-    last_login TIMESTAMP
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    business_name VARCHAR(200),
+    is_verified BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
 );
+
 CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_account_type ON users(account_type);
+CREATE INDEX idx_users_username ON users(username);
 
--- Physical card inventory (partitioned by status)
-CREATE TABLE inventory_barcodes (
-    barcode_id VARCHAR(30) PRIMARY KEY,
-    variant_id INT REFERENCES card_variants(variant_id),
-    user_id INT REFERENCES users(user_id),
-    
-    status VARCHAR(20) DEFAULT 'active',
-    condition VARCHAR(20),
-    
-    acquired_from VARCHAR(200),
-    acquisition_date DATE,
-    acquisition_cost DECIMAL(10,2),
-    
-    storage_location VARCHAR(200),
-    
-    created_at TIMESTAMP DEFAULT NOW(),
-    last_scanned_at TIMESTAMP,
-    status_updated_at TIMESTAMP,
-    
-    sold_to VARCHAR(200),
-    sale_date DATE,
-    sale_price DECIMAL(10,2)
-) PARTITION BY LIST (status);
+-- ============================================================================
+-- PRODUCTS
+-- ============================================================================
 
-CREATE TABLE inventory_barcodes_active PARTITION OF inventory_barcodes FOR VALUES IN ('active');
-CREATE TABLE inventory_barcodes_sold PARTITION OF inventory_barcodes FOR VALUES IN ('sold');
-CREATE TABLE inventory_barcodes_released PARTITION OF inventory_barcodes FOR VALUES IN ('released');
-CREATE TABLE inventory_barcodes_archived PARTITION OF inventory_barcodes FOR VALUES IN ('archived');
+CREATE TABLE products (
+    product_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    product_type_id VARCHAR(50) REFERENCES product_types(product_type_id) NOT NULL,
+    barcode VARCHAR(100) UNIQUE,
+    sku VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
 
-CREATE INDEX idx_barcodes_user ON inventory_barcodes(user_id);
-CREATE INDEX idx_barcodes_variant ON inventory_barcodes(variant_id);
-CREATE INDEX idx_barcodes_status ON inventory_barcodes(status);
+CREATE INDEX idx_products_barcode ON products(barcode);
+CREATE INDEX idx_products_type ON products(product_type_id);
 
--- Barcode history (same as before)
-CREATE TABLE barcode_history (
-    history_id BIGSERIAL PRIMARY KEY,
-    barcode_id VARCHAR(30) REFERENCES inventory_barcodes(barcode_id),
+-- ============================================================================
+-- CARD DETAILS (Sports/Non-Sport Cards)
+-- ============================================================================
+
+CREATE TABLE card_details (
+    card_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    product_id VARCHAR(50) REFERENCES products(product_id) UNIQUE NOT NULL,
+    category_id INTEGER REFERENCES categories(category_id),
+    set_id INTEGER REFERENCES sets(set_id),
     
-    event_type VARCHAR(30) NOT NULL,
-    from_user_id INT REFERENCES users(user_id),
-    to_user_id INT REFERENCES users(user_id),
+    -- Player info
+    player VARCHAR(200) NOT NULL,
+    team VARCHAR(100),
+    position VARCHAR(50),
     
-    event_data JSONB,
-    signature VARCHAR(64),
-    previous_signature VARCHAR(64),
+    -- Card info
+    card_number VARCHAR(50),
+    year INTEGER,
     
-    ip_address INET,
-    device_info JSONB,
+    -- Special attributes
+    variant BOOLEAN DEFAULT false,
+    variant_name VARCHAR(100),
+    rookie_card BOOLEAN DEFAULT false,
+    serial_number VARCHAR(50),
+    autograph BOOLEAN DEFAULT false,
+    relic BOOLEAN DEFAULT false,
+    refractor BOOLEAN DEFAULT false,
+    is_insert BOOLEAN DEFAULT false,
+    is_sp BOOLEAN DEFAULT false,
+    
+    -- Grading
+    graded BOOLEAN DEFAULT false,
+    grading_company VARCHAR(50),
+    grade VARCHAR(20),
+    grade_numeric DECIMAL(4,2),
+    cert_number VARCHAR(100),
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_card_details_player ON card_details(player);
+CREATE INDEX idx_card_details_year ON card_details(year);
+CREATE INDEX idx_card_details_rookie ON card_details(rookie_card);
+
+-- ============================================================================
+-- TCG DETAILS (Trading Card Games)
+-- ============================================================================
+
+CREATE TABLE tcg_details (
+    tcg_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    product_id VARCHAR(50) REFERENCES products(product_id) UNIQUE NOT NULL,
+    set_id INTEGER REFERENCES sets(set_id),
+    category_id INTEGER REFERENCES categories(category_id),
+    
+    -- Universal TCG fields
+    card_name VARCHAR(200) NOT NULL,
+    card_number VARCHAR(50),
+    rarity VARCHAR(50),
+    card_type VARCHAR(100),
+    
+    -- Final Fantasy TCG
+    element VARCHAR(50),
+    cost INTEGER,
+    power INTEGER,
+    job VARCHAR(100),
+    fftcg_category VARCHAR(100),
+    
+    -- Pokemon
+    pokemon_type VARCHAR(50),
+    hp INTEGER,
+    stage VARCHAR(50),
+    
+    -- Magic: The Gathering
+    mana_cost VARCHAR(100),
+    color VARCHAR(50),
+    
+    -- Common fields
+    text TEXT,
+    set_code VARCHAR(20),
+    variant_type VARCHAR(20) DEFAULT 'normal',
+    is_foil BOOLEAN DEFAULT false,
+    foil BOOLEAN DEFAULT false,
+    variant BOOLEAN DEFAULT false,
+    variant_name VARCHAR(100),
+    image_url TEXT,
+    flavor_text TEXT,
+    artist VARCHAR(200),
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_tcg_details_name ON tcg_details(card_name);
+CREATE INDEX idx_tcg_details_set_code ON tcg_details(set_code);
+
+-- ============================================================================
+-- BOX & PACK DETAILS
+-- ============================================================================
+
+CREATE TABLE box_details (
+    box_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    product_id VARCHAR(50) REFERENCES products(product_id) UNIQUE NOT NULL,
+    set_id INTEGER REFERENCES sets(set_id),
+    box_name VARCHAR(200),
+    box_type VARCHAR(100),
+    packs_per_box INTEGER,
+    cards_per_pack INTEGER,
+    box_year INTEGER,
+    retail_price DECIMAL(10,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE pack_details (
+    pack_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    product_id VARCHAR(50) REFERENCES products(product_id) UNIQUE NOT NULL,
+    set_id INTEGER REFERENCES sets(set_id),
+    pack_name VARCHAR(200),
+    cards_per_pack INTEGER,
+    pack_year INTEGER,
+    retail_price DECIMAL(10,2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+-- ============================================================================
+-- SHOWS
+-- ============================================================================
+
+CREATE TABLE shows (
+    show_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id VARCHAR(50) REFERENCES users(user_id) NOT NULL,
+    show_name VARCHAR(200) NOT NULL,
+    show_date DATE NOT NULL,
+    location VARCHAR(200),
+    venue VARCHAR(200),
+    table_number VARCHAR(50),
+    table_cost DECIMAL(10,2),
     notes TEXT,
+    is_active BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_shows_user ON shows(user_id);
+CREATE INDEX idx_shows_date ON shows(show_date);
+CREATE INDEX idx_shows_active ON shows(is_active);
+
+-- ============================================================================
+-- INVENTORY
+-- ============================================================================
+
+CREATE TABLE inventory (
+    inventory_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id VARCHAR(50) REFERENCES users(user_id) NOT NULL,
+    product_id VARCHAR(50) REFERENCES products(product_id) NOT NULL,
     
-    created_at TIMESTAMP DEFAULT NOW()
-) PARTITION BY RANGE (created_at);
-
-CREATE TABLE barcode_history_2026_02 PARTITION OF barcode_history 
-    FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
-
-CREATE INDEX idx_history_barcode ON barcode_history(barcode_id);
-CREATE INDEX idx_history_user ON barcode_history(from_user_id);
-CREATE INDEX idx_history_event ON barcode_history(event_type);
-
--- ============================================================================
--- PART 7: VIEWS FOR COMMON QUERIES
--- ============================================================================
-
--- Complete card view with all variant info
-CREATE VIEW vw_complete_cards AS
-SELECT 
-    bc.base_card_id,
-    bc.game_id,
-    g.full_name as game_name,
-    cs.set_code,
-    cs.set_name,
-    bc.card_number,
-    bc.name as card_name,
-    bc.rarity_code,
-    bc.standard_code,
+    -- Quantities
+    quantity INTEGER DEFAULT 0,
+    available_quantity INTEGER DEFAULT 0,
     
-    cv.variant_id,
-    cv.finish_type,
-    cv.art_treatment,
-    cv.special_designation,
-    cv.language,
-    cv.full_code,
-    cv.image_url,
-    cv.market_price,
+    -- Pricing
+    purchase_price DECIMAL(10,2),
+    current_market_price DECIMAL(10,2),
+    asking_price DECIMAL(10,2),
+    minimum_price DECIMAL(10,2),
     
-    ca.element,
-    ca.cost,
-    ca.power,
-    ca.card_type,
-    ca.hp,
-    ca.pokemon_type,
-    ca.mana_cost,
-    ca.attributes
-FROM base_cards bc
-JOIN games g ON bc.game_id = g.game_id
-JOIN card_sets cs ON bc.set_id = cs.set_id
-LEFT JOIN card_variants cv ON bc.base_card_id = cv.base_card_id
-LEFT JOIN card_attributes ca ON bc.base_card_id = ca.base_card_id;
+    -- Storage
+    storage_location VARCHAR(200),
+    box_number VARCHAR(50),
+    row_number VARCHAR(50),
+    
+    -- Notes
+    notes TEXT,
+    private_notes TEXT,
+    
+    -- Status
+    for_sale BOOLEAN DEFAULT true,
+    featured BOOLEAN DEFAULT false,
+    condition VARCHAR(50),
+    acquired_date DATE,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_inventory_user ON inventory(user_id);
+CREATE INDEX idx_inventory_product ON inventory(product_id);
+CREATE INDEX idx_inventory_for_sale ON inventory(for_sale);
 
 -- ============================================================================
--- PART 8: SEED DATA FOR INITIAL GAMES
+-- TRANSACTIONS (Sales)
 -- ============================================================================
 
--- Insert supported games
-INSERT INTO games (game_id, full_name, publisher, uses_set_symbols, set_code_format, 
-                   set_indicator_location, card_number_location, rarity_indicator_location) VALUES
-('Pokemon', 'Pokémon Trading Card Game', 'The Pokémon Company', true, 'image_symbol', 
- 'bottom_left', 'bottom_right', 'bottom_left'),
-('MagicTG', 'Magic: The Gathering', 'Wizards of the Coast', true, 'image_symbol', 
- 'center_right', 'bottom_left', 'center_right'),
-('FFTCG', 'Final Fantasy Trading Card Game', 'Square Enix', false, 'text', 
- 'bottom_center', 'bottom_center', 'bottom_center'),
-('OnePiece', 'One Piece Card Game', 'Bandai', false, 'text', 
- 'bottom_center', 'bottom_center', 'bottom_right');
+CREATE TABLE inventory_transactions (
+    transaction_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    inventory_id VARCHAR(50) REFERENCES inventory(inventory_id) NOT NULL,
+    user_id VARCHAR(50) REFERENCES users(user_id) NOT NULL,
+    
+    transaction_type VARCHAR(50) NOT NULL,  -- 'sale', 'purchase', 'adjustment'
+    quantity INTEGER NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    
+    -- Payment
+    payment_method VARCHAR(50),
+    payment_reference VARCHAR(100),
+    
+    -- Customer
+    customer_name VARCHAR(200),
+    customer_email VARCHAR(255),
+    customer_phone VARCHAR(50),
+    
+    -- Show tracking
+    show_name VARCHAR(200),
+    show_date DATE,
+    show_location VARCHAR(200),
+    
+    notes TEXT,
+    transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- Insert detection configs
-INSERT INTO detection_config (game_id, set_code_region, card_number_region, 
-                              uses_set_symbol_matching, uses_ocr_text) VALUES
--- Pokemon: Uses set symbol matching primarily
-('Pokemon', 
- '{"x": 0.05, "y": 0.88, "w": 0.15, "h": 0.08}'::jsonb,
- '{"x": 0.75, "y": 0.92, "w": 0.20, "h": 0.06}'::jsonb,
- true, true),
-
--- MtG: Uses set symbol matching primarily  
-('MagicTG',
- '{"x": 0.80, "y": 0.45, "w": 0.15, "h": 0.10}'::jsonb,
- '{"x": 0.05, "y": 0.92, "w": 0.15, "h": 0.06}'::jsonb,
- true, true),
-
--- FFTCG: Uses OCR text only
-('FFTCG',
- '{"x": 0.36, "y": 0.93, "w": 0.30, "h": 0.05}'::jsonb,
- '{"x": 0.36, "y": 0.93, "w": 0.30, "h": 0.05}'::jsonb,
- false, true),
-
--- One Piece: Uses OCR text  
-('OnePiece',
- '{"x": 0.30, "y": 0.92, "w": 0.40, "h": 0.06}'::jsonb,
- '{"x": 0.30, "y": 0.92, "w": 0.40, "h": 0.06}'::jsonb,
- false, true);
+CREATE INDEX idx_transactions_user ON inventory_transactions(user_id);
+CREATE INDEX idx_transactions_inventory ON inventory_transactions(inventory_id);
+CREATE INDEX idx_transactions_type ON inventory_transactions(transaction_type);
+CREATE INDEX idx_transactions_show ON inventory_transactions(show_name);
+CREATE INDEX idx_transactions_date ON inventory_transactions(transaction_date);
 
 -- ============================================================================
--- PART 9: HELPER FUNCTIONS
+-- EXPENSES
 -- ============================================================================
 
--- Generate unique barcode ID
-CREATE OR REPLACE FUNCTION generate_barcode_id()
-RETURNS VARCHAR(30) AS $$
-DECLARE
-    new_id VARCHAR(30);
-    collision BOOLEAN := TRUE;
-BEGIN
-    WHILE collision LOOP
-        new_id := 'VB-' || upper(substring(md5(random()::text) from 1 for 10));
-        SELECT EXISTS(SELECT 1 FROM inventory_barcodes WHERE barcode_id = new_id) INTO collision;
-    END LOOP;
-    RETURN new_id;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TABLE expenses (
+    expense_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id VARCHAR(50) REFERENCES users(user_id) NOT NULL,
+    show_id VARCHAR(50) REFERENCES shows(show_id),
+    
+    expense_type VARCHAR(100) NOT NULL,
+    description VARCHAR(500) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(50),
+    receipt_image VARCHAR(500),
+    notes TEXT,
+    expense_date DATE NOT NULL,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_expenses_user ON expenses(user_id);
+CREATE INDEX idx_expenses_show ON expenses(show_id);
+CREATE INDEX idx_expenses_date ON expenses(expense_date);
+CREATE INDEX idx_expenses_type ON expenses(expense_type);
+
+-- ============================================================================
+-- SCANNING & FINGERPRINTS (Legacy - kept for future use)
+-- ============================================================================
+
+CREATE TABLE scans (
+    scan_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    user_id VARCHAR(50) REFERENCES users(user_id) NOT NULL,
+    product_id VARCHAR(50) REFERENCES products(product_id),
+    
+    scan_type VARCHAR(50),
+    scan_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    raw_data TEXT,
+    ocr_confidence DECIMAL(4,3),
+    
+    -- Detected info
+    detected_player VARCHAR(200),
+    detected_sport VARCHAR(100),
+    detected_team VARCHAR(100),
+    detected_year INTEGER,
+    detected_set VARCHAR(200),
+    detected_card_number VARCHAR(50),
+    detected_variant BOOLEAN,
+    detected_variant_name VARCHAR(100),
+    detected_grading_company VARCHAR(50),
+    detected_grade VARCHAR(20),
+    detected_cert_number VARCHAR(100),
+    
+    image_path VARCHAR(500),
+    verified BOOLEAN DEFAULT false,
+    edited BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_scans_user ON scans(user_id);
+CREATE INDEX idx_scans_product ON scans(product_id);
+
+-- ============================================================================
+-- PRICE HISTORY
+-- ============================================================================
+
+CREATE TABLE price_history (
+    price_id VARCHAR(50) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    product_id VARCHAR(50) REFERENCES products(product_id) NOT NULL,
+    source VARCHAR(100) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    condition VARCHAR(50),
+    price_date TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_price_history_product ON price_history(product_id);
+CREATE INDEX idx_price_history_source ON price_history(source);
+CREATE INDEX idx_price_history_date ON price_history(price_date);
+
+-- ============================================================================
+-- SEED DATA
+-- ============================================================================
+
+-- Product types
+INSERT INTO product_types (product_type_id, product_type_name) VALUES
+('pt_card', 'Single Card'),
+('pt_pack', 'Booster Pack'),
+('pt_box', 'Sealed Box'),
+('pt_case', 'Case'),
+('pt_deck', 'Preconstructed Deck'),
+('pt_accessory', 'Accessory');
+
+-- Categories
+INSERT INTO categories (category_name, category_type) VALUES
+('Pokemon', 'tcg'),
+('Magic: The Gathering', 'tcg'),
+('Final Fantasy TCG', 'tcg'),
+('One Piece', 'tcg'),
+('Yu-Gi-Oh!', 'tcg'),
+('Baseball', 'sports'),
+('Basketball', 'sports'),
+('Football', 'sports'),
+('Hockey', 'sports'),
+('Soccer', 'sports');
 
 -- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
-
-COMMENT ON DATABASE vendorboss IS 'VendorBoss multi-game TCG inventory and scanning system';

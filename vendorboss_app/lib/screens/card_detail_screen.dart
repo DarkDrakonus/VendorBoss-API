@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../models/inventory_item.dart';
 import '../models/listing.dart';
-
 import 'add_edit_card_screen.dart';
 
 class CardDetailScreen extends StatefulWidget {
@@ -15,19 +14,38 @@ class CardDetailScreen extends StatefulWidget {
 }
 
 class _CardDetailScreenState extends State<CardDetailScreen> {
-  final currency = NumberFormat.currency(symbol: '\$');
+  final currency   = NumberFormat.currency(symbol: '\$');
   final dateFormat = DateFormat('MMM d, yyyy');
 
-  // In real app these come from API; here we pull from mock
+  late InventoryItem _item;
   late List<Listing> _listings;
 
   @override
   void initState() {
     super.initState();
-    _listings = []; // Listings populated via Listing Management screen
+    _item     = widget.item;
+    _listings = []; // populated via Listing Management screen (future)
   }
 
-  // Simulates pulling a listing (cancelling it on the platform)
+  // ── Navigation helpers ────────────────────────────────────────────────────
+
+  void _openEdit() {
+    Navigator.push<dynamic>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddEditCardScreen(existingItem: _item),
+      ),
+    ).then((result) {
+      if (result == 'deleted') {
+        Navigator.pop(context);
+      } else if (result is InventoryItem) {
+        setState(() => _item = result);
+      }
+    });
+  }
+
+  // ── Listing actions ───────────────────────────────────────────────────────
+
   void _pullListing(Listing listing) {
     showDialog(
       context: context,
@@ -51,9 +69,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
             onPressed: () {
               Navigator.pop(ctx);
               setState(() {
-                _listings = _listings
-                    .where((l) => l.id != listing.id)
-                    .toList();
+                _listings = _listings.where((l) => l.id != listing.id).toList();
               });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -84,19 +100,21 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _ShareListingSheet(
-        listing: listing,
-        item: widget.item,
+        listing:  listing,
+        item:     _item,
         currency: currency,
       ),
     );
   }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // ── Hero header ─────────────────────────────────────────────────
+          // ── Hero header ──────────────────────────────────────────────────
           SliverAppBar(
             expandedHeight: 340,
             pinned: true,
@@ -109,19 +127,17 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(0, 60, 0, 16),
-                      child: _CardImage(item: widget.item, large: true),
+                      child: _CardImage(item: _item, large: true),
                     ),
                   ),
                   Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
+                    bottom: 0, left: 0, right: 0,
                     child: Container(
                       height: 60,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                          end:   Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
                             Theme.of(context).scaffoldBackgroundColor,
@@ -135,58 +151,50 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        AddEditCardScreen(existingItem: widget.item),
-                  ),
-                ).then((result) {
-                  if (result == 'deleted') Navigator.pop(context);
-                }),
+                icon:      const Icon(Icons.edit_outlined),
+                onPressed: _openEdit,
               ),
             ],
           ),
 
-          // ── Content ─────────────────────────────────────────────────────
+          // ── Content ──────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
                   // Name + graded badge
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Text(
-                          widget.item.cardName,
+                          _item.cardName,
                           style: const TextStyle(
-                            fontSize: 26,
+                            fontSize:   26,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
-                      if (widget.item.isGraded &&
-                          widget.item.gradingCompany != null)
+                      if (_item.isGraded && _item.gradingCompany != null)
                         Container(
-                          margin: const EdgeInsets.only(top: 4, left: 8),
+                          margin:  const EdgeInsets.only(top: 4, left: 8),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.warning.withOpacity(0.15),
+                            color:        AppColors.warning.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
+                            border:       Border.all(
                                 color: AppColors.warning.withOpacity(0.4)),
                           ),
                           child: Text(
-                            '${widget.item.gradingCompany} ${widget.item.grade}',
+                            '${_item.gradingCompany} ${_item.grade}',
                             style: const TextStyle(
-                              color: AppColors.warning,
+                              color:      AppColors.warning,
                               fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                              fontSize:   13,
                             ),
                           ),
                         ),
@@ -195,7 +203,7 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
 
                   const SizedBox(height: 4),
                   Text(
-                    '${widget.item.game} · ${widget.item.setName} · #${widget.item.cardNumber}',
+                    '${_item.game} · ${_item.setName} · #${_item.cardNumber}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 14),
                   ),
@@ -205,28 +213,28 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                   Wrap(
                     spacing: 8,
                     children: [
-                      _Tag(widget.item.condition, AppColors.textSecondary),
-                      if (widget.item.finish != 'normal')
-                        _Tag(widget.item.finishDisplay, AppColors.info),
-                      if (widget.item.language != 'English')
-                        _Tag(widget.item.language, AppColors.accent),
+                      _Tag(_item.condition, AppColors.textSecondary),
+                      if (_item.finish != 'normal')
+                        _Tag(_item.finishDisplay, AppColors.info),
+                      if (_item.language != 'English')
+                        _Tag(_item.language, AppColors.accent),
                     ],
                   ),
 
-                  // ── Active listings ─────────────────────────────────────
+                  // ── Active listings ────────────────────────────────────
                   if (_listings.isNotEmpty) ...[
                     const SizedBox(height: 28),
                     const _SectionDivider('Listed On'),
                     const SizedBox(height: 12),
                     ..._listings.map((listing) => _ListingCard(
-                          listing: listing,
+                          listing:  listing,
                           currency: currency,
-                          onPull: () => _pullListing(listing),
-                          onShare: () => _shareListingInfo(listing),
+                          onPull:   () => _pullListing(listing),
+                          onShare:  () => _shareListingInfo(listing),
                         )),
                   ],
 
-                  // ── Pricing ─────────────────────────────────────────────
+                  // ── Pricing ────────────────────────────────────────────
                   const SizedBox(height: 24),
                   const _SectionDivider('Pricing'),
                   const SizedBox(height: 12),
@@ -236,8 +244,8 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       Expanded(
                         child: _PriceCell(
                           label: 'Asking Price',
-                          value: widget.item.askingPrice != null
-                              ? currency.format(widget.item.askingPrice)
+                          value: _item.askingPrice != null
+                              ? currency.format(_item.askingPrice)
                               : '—',
                           color: AppColors.accent,
                           large: true,
@@ -246,8 +254,8 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       Expanded(
                         child: _PriceCell(
                           label: 'Market Price',
-                          value: widget.item.marketPrice != null
-                              ? currency.format(widget.item.marketPrice)
+                          value: _item.marketPrice != null
+                              ? currency.format(_item.marketPrice)
                               : '—',
                           color: AppColors.textPrimary,
                         ),
@@ -260,8 +268,8 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       Expanded(
                         child: _PriceCell(
                           label: 'Purchase Price',
-                          value: widget.item.purchasePrice != null
-                              ? currency.format(widget.item.purchasePrice)
+                          value: _item.purchasePrice != null
+                              ? currency.format(_item.purchasePrice)
                               : '—',
                           color: AppColors.textSecondary,
                         ),
@@ -269,10 +277,10 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       Expanded(
                         child: _PriceCell(
                           label: 'Profit Margin',
-                          value: widget.item.profitMargin != null
-                              ? currency.format(widget.item.profitMargin)
+                          value: _item.profitMargin != null
+                              ? currency.format(_item.profitMargin)
                               : '—',
-                          color: (widget.item.profitMargin ?? 0) >= 0
+                          color: (_item.profitMargin ?? 0) >= 0
                               ? AppColors.success
                               : AppColors.danger,
                         ),
@@ -280,38 +288,38 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                     ],
                   ),
 
-                  if (widget.item.marketMarkup != null) ...[
+                  if (_item.marketMarkup != null) ...[
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
-                        color: _markupColor(widget.item.marketMarkup!)
+                        color:        _markupColor(_item.marketMarkup!)
                             .withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: _markupColor(widget.item.marketMarkup!)
+                          color: _markupColor(_item.marketMarkup!)
                               .withOpacity(0.3),
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            widget.item.marketMarkup! >= 0
+                            _item.marketMarkup! >= 0
                                 ? Icons.trending_up
                                 : Icons.trending_down,
-                            color: _markupColor(widget.item.marketMarkup!),
+                            color: _markupColor(_item.marketMarkup!),
                             size: 18,
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            widget.item.marketMarkup! >= 0
-                                ? 'Priced ${widget.item.marketMarkup!.abs().toStringAsFixed(1)}% above market'
-                                : 'Priced ${widget.item.marketMarkup!.abs().toStringAsFixed(1)}% below market',
+                            _item.marketMarkup! >= 0
+                                ? 'Priced ${_item.marketMarkup!.abs().toStringAsFixed(1)}% above market'
+                                : 'Priced ${_item.marketMarkup!.abs().toStringAsFixed(1)}% below market',
                             style: TextStyle(
-                              color: _markupColor(widget.item.marketMarkup!),
+                              color:      _markupColor(_item.marketMarkup!),
                               fontWeight: FontWeight.w600,
-                              fontSize: 13,
+                              fontSize:   13,
                             ),
                           ),
                         ],
@@ -319,33 +327,30 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                     ),
                   ],
 
-                  // ── Card details ────────────────────────────────────────
+                  // ── Card details ───────────────────────────────────────
                   const SizedBox(height: 24),
                   const _SectionDivider('Card Details'),
                   const SizedBox(height: 12),
 
-                  _DetailRow('Game', widget.item.game),
-                  _DetailRow('Set', widget.item.setName),
-                  _DetailRow('Card Number', widget.item.cardNumber),
-                  _DetailRow('Condition', widget.item.condition),
-                  _DetailRow('Finish', widget.item.finishDisplay),
-                  _DetailRow('Language', widget.item.language),
-                  if (widget.item.isGraded) ...[
-                    _DetailRow('Grading Company',
-                        widget.item.gradingCompany ?? '—'),
-                    _DetailRow('Grade', widget.item.grade ?? '—'),
+                  _DetailRow('Game',        _item.game),
+                  _DetailRow('Set',         _item.setName),
+                  _DetailRow('Card Number', _item.cardNumber),
+                  _DetailRow('Condition',   _item.condition),
+                  _DetailRow('Finish',      _item.finishDisplay),
+                  _DetailRow('Language',    _item.language),
+                  if (_item.isGraded) ...[
+                    _DetailRow('Grading Company', _item.gradingCompany ?? '—'),
+                    _DetailRow('Grade',           _item.grade ?? '—'),
                   ],
-                  _DetailRow('Quantity', '${widget.item.quantity}'),
-                  _DetailRow(
-                      'Acquired', dateFormat.format(widget.item.acquiredDate)),
+                  _DetailRow('Quantity', '${_item.quantity}'),
+                  _DetailRow('Acquired', dateFormat.format(_item.acquiredDate)),
 
-                  if (widget.item.notes != null &&
-                      widget.item.notes!.isNotEmpty) ...[
+                  if (_item.notes != null && _item.notes!.isNotEmpty) ...[
                     const SizedBox(height: 24),
                     const _SectionDivider('Notes'),
                     const SizedBox(height: 12),
                     Text(
-                      widget.item.notes!,
+                      _item.notes!,
                       style: const TextStyle(
                           color: AppColors.textSecondary, height: 1.5),
                     ),
@@ -353,16 +358,15 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
 
                   const SizedBox(height: 32),
 
-                  // ── Action buttons ──────────────────────────────────────
+                  // ── Action buttons ─────────────────────────────────────
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          icon: const Icon(Icons.point_of_sale),
+                          icon:  const Icon(Icons.point_of_sale),
                           label: const Text('Add to Sale'),
                           style: OutlinedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: () =>
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -374,22 +378,12 @@ class _CardDetailScreenState extends State<CardDetailScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.edit),
+                          icon:  const Icon(Icons.edit),
                           label: const Text('Edit Card'),
                           style: ElevatedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AddEditCardScreen(
-                                  existingItem: widget.item),
-                            ),
-                          ).then((result) {
-                            if (result == 'deleted')
-                              Navigator.pop(context);
-                          }),
+                          onPressed: _openEdit,
                         ),
                       ),
                     ],
@@ -427,31 +421,29 @@ class _ListingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _platformColor(listing.platform);
+    final color      = _platformColor(listing.platform);
     final timeFormat = DateFormat('MMM d, yyyy');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color:        AppColors.darkSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border:       Border.all(color: color.withOpacity(0.35)),
       ),
       child: Column(
         children: [
-          // Header row — platform + type + price
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
             child: Row(
               children: [
-                // Platform icon badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
+                    color:        color.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: color.withOpacity(0.3)),
+                    border:       Border.all(color: color.withOpacity(0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -459,54 +451,40 @@ class _ListingCard extends StatelessWidget {
                       Icon(_platformIcon(listing.platform),
                           size: 14, color: color),
                       const SizedBox(width: 6),
-                      Text(
-                        listing.platformDisplay,
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
+                      Text(listing.platformDisplay,
+                          style: TextStyle(
+                            color:      color,
+                            fontWeight: FontWeight.w700,
+                            fontSize:   13,
+                          )),
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 8),
-
-                // Listing type chip
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.darkSurfaceElevated,
+                    color:        AppColors.darkSurfaceElevated,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(
-                    listing.listingTypeDisplay,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: Text(listing.listingTypeDisplay,
+                      style: const TextStyle(
+                        color:      AppColors.textSecondary,
+                        fontSize:   11,
+                        fontWeight: FontWeight.w600,
+                      )),
                 ),
-
                 const Spacer(),
-
-                // Listed price
-                Text(
-                  currency.format(listing.listedPrice),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
+                Text(currency.format(listing.listedPrice),
+                    style: const TextStyle(
+                      fontSize:   18,
+                      fontWeight: FontWeight.w800,
+                      color:      AppColors.textPrimary,
+                    )),
               ],
             ),
           ),
-
-          // Meta row — listed date, auction end if applicable
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
             child: Row(
@@ -514,48 +492,39 @@ class _ListingCard extends StatelessWidget {
                 Icon(Icons.calendar_today_outlined,
                     size: 12, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
-                Text(
-                  'Listed ${timeFormat.format(listing.listedAt)}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
-                ),
+                Text('Listed ${timeFormat.format(listing.listedAt)}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
                 if (listing.isAuction && listing.endsAt != null) ...[
                   const SizedBox(width: 12),
                   Icon(Icons.timer_outlined,
                       size: 12, color: AppColors.warning),
                   const SizedBox(width: 4),
-                  Text(
-                    'Ends ${timeFormat.format(listing.endsAt!)}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.warning),
-                  ),
+                  Text('Ends ${timeFormat.format(listing.endsAt!)}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.warning)),
                 ],
                 if (listing.notes != null) ...[
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      listing.notes!,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    child: Text(listing.notes!,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary),
+                        overflow: TextOverflow.ellipsis),
                   ),
                 ],
               ],
             ),
           ),
-
           const SizedBox(height: 12),
           const Divider(height: 1),
-
-          // Action buttons
           IntrinsicHeight(
             child: Row(
               children: [
-                // Share listing info with customer
                 Expanded(
                   child: TextButton.icon(
-                    icon: const Icon(Icons.share_outlined, size: 16),
+                    icon:  const Icon(Icons.share_outlined, size: 16),
                     label: const Text('Share Info',
                         style: TextStyle(fontSize: 13)),
                     style: TextButton.styleFrom(
@@ -565,16 +534,10 @@ class _ListingCard extends StatelessWidget {
                     onPressed: onShare,
                   ),
                 ),
-
-                VerticalDivider(
-                  width: 1,
-                  color: AppColors.darkDivider,
-                ),
-
-                // Pull from platform and sell in person
+                const VerticalDivider(width: 1, color: AppColors.darkDivider),
                 Expanded(
                   child: TextButton.icon(
-                    icon: const Icon(Icons.download_outlined, size: 16),
+                    icon:  const Icon(Icons.download_outlined, size: 16),
                     label: const Text('Pull & Sell Here',
                         style: TextStyle(fontSize: 13)),
                     style: TextButton.styleFrom(
@@ -594,11 +557,11 @@ class _ListingCard extends StatelessWidget {
 
   Color _platformColor(String platform) {
     switch (platform) {
-      case 'ebay':      return const Color(0xFF86B817); // eBay green
-      case 'tcgplayer': return const Color(0xFF1DA0F2); // TCG blue
-      case 'comc':      return const Color(0xFFFF6B35); // COMC orange
-      case 'whatnot':   return const Color(0xFF9B59B6); // Whatnot purple
-      case 'mercari':   return const Color(0xFFE91E8C); // Mercari pink
+      case 'ebay':      return const Color(0xFF86B817);
+      case 'tcgplayer': return const Color(0xFF1DA0F2);
+      case 'comc':      return const Color(0xFFFF6B35);
+      case 'whatnot':   return const Color(0xFF9B59B6);
+      case 'mercari':   return const Color(0xFFE91E8C);
       default:          return AppColors.accent;
     }
   }
@@ -630,53 +593,38 @@ class _ShareListingSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(12),
+      margin:  const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color:        const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(20),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize:     MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Listing Info',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          const Text('Listing Info',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          Text(
-            'Share this with your customer so they can find the listing',
-            style: TextStyle(color: Colors.grey[400], fontSize: 13),
-          ),
+          Text('Share this with your customer so they can find the listing',
+              style: TextStyle(color: Colors.grey[400], fontSize: 13)),
           const SizedBox(height: 20),
-
-          // Card summary
           Text(item.cardName,
               style: const TextStyle(
                   fontWeight: FontWeight.w700, fontSize: 16)),
-          Text(
-            '${item.setName} · ${item.condition}',
-            style: TextStyle(color: Colors.grey[400], fontSize: 13),
-          ),
-
+          Text('${item.setName} · ${item.condition}',
+              style: TextStyle(color: Colors.grey[400], fontSize: 13)),
           const SizedBox(height: 16),
-
           _InfoLine('Platform', listing.platformDisplay),
-          _InfoLine('Price', currency.format(listing.listedPrice)),
-          _InfoLine('Type', listing.listingTypeDisplay),
+          _InfoLine('Price',    currency.format(listing.listedPrice)),
+          _InfoLine('Type',     listing.listingTypeDisplay),
           if (listing.platformUrl != null)
             _InfoLine('URL', listing.platformUrl!, isUrl: true),
-
           const SizedBox(height: 24),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.copy_outlined),
+              icon:  const Icon(Icons.copy_outlined),
               label: const Text('Copy Listing URL'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
@@ -685,13 +633,11 @@ class _ShareListingSheet extends StatelessWidget {
               ),
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                        '${listing.platformDisplay} URL copied to clipboard'),
-                    backgroundColor: AppColors.success,
-                  ),
-                );
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(
+                      '${listing.platformDisplay} URL copied to clipboard'),
+                  backgroundColor: AppColors.success,
+                ));
               },
             ),
           ),
@@ -704,7 +650,7 @@ class _ShareListingSheet extends StatelessWidget {
 class _InfoLine extends StatelessWidget {
   final String label;
   final String value;
-  final bool isUrl;
+  final bool   isUrl;
   const _InfoLine(this.label, this.value, {this.isUrl = false});
 
   @override
@@ -721,15 +667,13 @@ class _InfoLine extends StatelessWidget {
                     color: AppColors.textSecondary, fontSize: 13)),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isUrl ? AppColors.info : AppColors.textPrimary,
-                decoration: isUrl ? TextDecoration.underline : null,
-              ),
-            ),
+            child: Text(value,
+                style: TextStyle(
+                  fontSize:   13,
+                  fontWeight: FontWeight.w600,
+                  color: isUrl ? AppColors.info : AppColors.textPrimary,
+                  decoration: isUrl ? TextDecoration.underline : null,
+                )),
           ),
         ],
       ),
@@ -755,9 +699,9 @@ class _CardImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = large ? 180.0 : 48.0;
+    final width  = large ? 180.0 : 48.0;
     final height = large ? 252.0 : 67.0;
-    final radius = large ? 10.0 : 4.0;
+    final radius = large ? 10.0  : 4.0;
 
     if (item.imageUrl == null) {
       return _Placeholder(
@@ -768,20 +712,18 @@ class _CardImage extends StatelessWidget {
       borderRadius: BorderRadius.circular(radius),
       child: Image.network(
         item.imageUrl!,
-        width: width,
+        width:  width,
         height: height,
-        fit: BoxFit.cover,
+        fit:    BoxFit.cover,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
           return _Placeholder(
-              width: width,
-              height: height,
-              radius: radius,
-              item: item,
-              loading: true);
+              width: width, height: height, radius: radius,
+              item: item, loading: true);
         },
         errorBuilder: (context, error, stack) =>
-            _Placeholder(width: width, height: height, radius: radius, item: item),
+            _Placeholder(
+                width: width, height: height, radius: radius, item: item),
       ),
     );
   }
@@ -803,36 +745,36 @@ class _Placeholder extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _gameColor(item.game);
     return Container(
-      width: width,
+      width:  width,
       height: height,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color:        color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border:       Border.all(color: color.withOpacity(0.3)),
       ),
       child: loading
           ? Center(
               child: SizedBox(
-                width: width * 0.4,
-                height: width * 0.4,
+                width: width * 0.4, height: width * 0.4,
                 child: CircularProgressIndicator(
                     strokeWidth: 2, color: color.withOpacity(0.6)),
               ),
             )
           : Center(
               child: Icon(Icons.style_outlined,
-                  color: color.withOpacity(0.5), size: width < 60 ? 20 : 48),
+                  color: color.withOpacity(0.5),
+                  size:  width < 60 ? 20 : 48),
             ),
     );
   }
 
   Color _gameColor(String game) {
     switch (game.toLowerCase()) {
-      case 'pokemon':               return const Color(0xFFFFCC00);
-      case 'magic: the gathering':  return const Color(0xFFBF360C);
-      case 'one piece':             return const Color(0xFFFF5722);
-      case 'final fantasy':         return const Color(0xFF1565C0);
-      default:                      return AppColors.accent;
+      case 'pokemon':              return const Color(0xFFFFCC00);
+      case 'magic: the gathering': return const Color(0xFFBF360C);
+      case 'one piece':            return const Color(0xFFFF5722);
+      case 'final fantasy':        return const Color(0xFF1565C0);
+      default:                     return AppColors.accent;
     }
   }
 }
@@ -850,9 +792,9 @@ class _SectionDivider extends StatelessWidget {
         Text(
           title.toUpperCase(),
           style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: AppColors.accent,
+            fontSize:      11,
+            fontWeight:    FontWeight.w700,
+            color:         AppColors.accent,
             letterSpacing: 1.5,
           ),
         ),
@@ -866,21 +808,22 @@ class _SectionDivider extends StatelessWidget {
 class _PriceCell extends StatelessWidget {
   final String label;
   final String value;
-  final Color color;
-  final bool large;
-  const _PriceCell(
-      {required this.label,
-      required this.value,
-      required this.color,
-      this.large = false});
+  final Color  color;
+  final bool   large;
+  const _PriceCell({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.large = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(right: 8),
+      margin:  const EdgeInsets.only(right: 8),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color:        AppColors.darkSurface,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -892,8 +835,8 @@ class _PriceCell extends StatelessWidget {
           const SizedBox(height: 4),
           Text(value,
               style: TextStyle(
-                color: color,
-                fontSize: large ? 22 : 16,
+                color:      color,
+                fontSize:   large ? 22 : 16,
                 fontWeight: FontWeight.w800,
               )),
         ],
@@ -916,8 +859,7 @@ class _DetailRow extends StatelessWidget {
           SizedBox(
             width: 130,
             child: Text(label,
-                style:
-                    const TextStyle(color: AppColors.textSecondary)),
+                style: const TextStyle(color: AppColors.textSecondary)),
           ),
           Expanded(
             child: Text(value,
@@ -931,7 +873,7 @@ class _DetailRow extends StatelessWidget {
 
 class _Tag extends StatelessWidget {
   final String label;
-  final Color color;
+  final Color  color;
   const _Tag(this.label, this.color);
 
   @override
@@ -939,14 +881,14 @@ class _Tag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color:        color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border:       Border.all(color: color.withOpacity(0.3)),
       ),
       child: Text(
         label,
-        style:
-            TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+        style: TextStyle(
+            color: color, fontSize: 12, fontWeight: FontWeight.w600),
       ),
     );
   }
