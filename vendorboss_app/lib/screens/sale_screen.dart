@@ -56,7 +56,9 @@ class _SaleScreenState extends State<SaleScreen> {
     if (_searchQuery.isEmpty) return [];
     final q = _searchQuery.toLowerCase();
     return _allInventory
-        .where((i) => i.cardName.toLowerCase().contains(q) || i.game.toLowerCase().contains(q))
+        .where((i) =>
+            i.quantity > 0 &&
+            (i.cardName.toLowerCase().contains(q) || i.game.toLowerCase().contains(q)))
         .toList();
   }
 
@@ -366,7 +368,7 @@ class _CardSalePanel extends StatelessWidget {
                         dense: true,
                         title: Text(item.displayName,
                             style: const TextStyle(fontWeight: FontWeight.w600)),
-                        subtitle: Text('${item.game} · ${item.condition}',
+                        subtitle: Text('${item.game} · ${item.condition} · qty: ${item.quantity}',
                             style: const TextStyle(fontSize: 12)),
                         trailing: Text(
                           item.askingPrice != null ? currency.format(item.askingPrice) : '—',

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../services/mock_data_service.dart';
 import '../models/card_model.dart';
+import 'card_recognition_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -43,13 +44,22 @@ class _ScanScreenState extends State<ScanScreen> {
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined),
             tooltip: 'Scan Card',
-            onPressed: () {
-              // TODO: Open camera scanner
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Camera scanning coming soon!')),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const CardRecognitionScreen(),
+                  fullscreenDialog: true,
+                ),
               );
+              // result is a ScanResult — handle it when card detail screen is wired
+              if (result != null && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Card identified! Add to inventory from the result.')),
+                );
+              }
             },
-          ),
+          );
         ],
       ),
       body: Column(
@@ -110,11 +120,13 @@ class _ScanScreenState extends State<ScanScreen> {
                     ElevatedButton.icon(
                       icon: const Icon(Icons.camera_alt),
                       label: const Text('Open Camera'),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Camera scanning coming soon!')),
-                        );
-                      },
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CardRecognitionScreen(),
+                          fullscreenDialog: true,
+                        ),
+                      ),
                     ),
                   ],
                 ),

@@ -20,7 +20,6 @@ import sys
 import json
 import urllib.request
 import urllib.error
-import ssl
 import argparse
 from pathlib import Path
 from datetime import datetime
@@ -57,11 +56,8 @@ def log(msg: str):
 def fetch_latest_bulk_url() -> str:
     """Ask Scryfall API for the current default-cards download URL."""
     log("Fetching latest bulk data URL from Scryfall...")
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
     req = urllib.request.Request(BULK_INDEX_URL, headers={"User-Agent": "VendorBoss/2.0"})
-    with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+    with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read())
     for item in data.get("data", []):
         if item.get("type") == "default_cards":
@@ -76,11 +72,8 @@ def download_bulk_data(url: str, dest: str):
     log(f"Downloading bulk data to {dest}...")
     log("This is ~300MB and may take a few minutes...")
 
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
     req = urllib.request.Request(url, headers={"User-Agent": "VendorBoss/2.0"})
-    with urllib.request.urlopen(req, timeout=120, context=ctx) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:
         total = int(resp.headers.get("Content-Length", 0))
         downloaded = 0
         chunk_size = 1024 * 1024  # 1MB chunks

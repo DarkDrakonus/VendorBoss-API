@@ -334,6 +334,11 @@ class ApiService {
         params: year != null ? {'year': '$year'} : null);
   }
 
+  Future<Map<String, dynamic>> getBulkSales({int? year}) async {
+    return await _get('${ApiConfig.reports}/bulk-sales',
+        params: year != null ? {'year': '$year'} : null);
+  }
+
   // ── User profile ──────────────────────────────────────────────────────────
 
   Future<void> changePassword({

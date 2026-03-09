@@ -91,7 +91,8 @@ class InventoryItem {
       isGraded:       json['graded'] ?? false,
       gradingCompany: json['grading_company'],
       grade:          json['grade'],
-      quantity:       json['quantity'] ?? 1,
+      // prefer available_quantity (unsold stock) over total quantity
+      quantity:       json['available_quantity'] ?? json['quantity'] ?? 1,
       purchasePrice:  _toDouble(json['purchase_price']),
       marketPrice:    _toDouble(json['current_market_price']),
       askingPrice:    _toDouble(json['asking_price']),

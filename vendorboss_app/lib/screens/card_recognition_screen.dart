@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
 import 'card_scan_screen.dart'; // re-exports ScanResult, ScannedCardData
 
 /// Full-screen card recognition screen.
@@ -142,46 +143,44 @@ class _CardRecognitionScreenState extends State<CardRecognitionScreen>
     }
   }
 
-  /// Sends the captured image to the backend which runs it through
-  /// the Claude vision API (or Scryfall/Pokemon TCG for confirmed matches).
-  ///
-  /// Endpoint: POST /api/v1/cards/identify
-  /// Body: multipart/form-data with image field
-  /// Response: { card_name, game, set_name, card_number, condition,
-  ///             image_url, market_price, finish, is_graded,
-  ///             grading_company, grade, confidence }
   Future<ScanResult> _callIdentifyApi(File imageFile) async {
-    // ── MOCK – replace with real HTTP call when backend is ready ──────────
-    // Real implementation:
-    //
-    // final request = http.MultipartRequest(
-    //   'POST',
-    //   Uri.parse('${AppConfig.apiBaseUrl}/api/v1/cards/identify'),
-    // );
-    // request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
-    // final response = await request.send();
-    // final body = await response.stream.bytesToString();
-    // final json = jsonDecode(body);
-    // return ScanResult(cardData: ScannedCardData.fromJson(json));
+    final response = await ApiService.instance.scanCard(imageFile);
 
-    await Future.delayed(const Duration(seconds: 2)); // simulate network
+    final scanId  = response['scan_id'] as String?;
+    final matches = (response['matches'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
 
-    // Return a realistic mock result so the UI flow works end-to-end
+    if (matches.isEmpty) {
+      return ScanResult.manualEntry();
+    }
+
+    if (!mounted) return ScanResult.manualEntry();
+    final confirmed = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _MatchSelectionScreen(
+          scanId:    scanId ?? '',
+          matches:   matches,
+          extracted: (response['extracted'] as Map<String, dynamic>? ?? {}),
+        ),
+      ),
+    );
+
+    if (confirmed == null) return ScanResult.manualEntry();
+
     return ScanResult(
       rawBarcode: null,
       cardData: ScannedCardData(
-        cardName:    'Charizard',
-        game:        'Pokemon',
-        setName:     'Base Set',
-        cardNumber:  '4/102',
-        imageUrl:    'https://images.pokemontcg.io/base1/4.png',
-        marketPrice: 320.00,
-        finish:      'holo',
-        condition:   'LP',    // AI also estimates condition from image
-        confidence:  0.97,
+        cardName:   confirmed['card_name'] ?? confirmed['player_name'] ?? 'Unknown',
+        game:       confirmed['game'] ?? '',
+        setName:    confirmed['set_name'] ?? '',
+        cardNumber: confirmed['card_number'] ?? '',
+        imageUrl:   confirmed['image_url'],
+        confidence: (confirmed['confidence'] as num?)?.toDouble(),
+        scanId:     scanId,
+        productId:  confirmed['product_id'],
       ),
     );
-    // ─────────────────────────────────────────────────────────────────────
   }
 
   void _toggleTorch() async {
@@ -377,6 +376,171 @@ class _CardRecognitionScreenState extends State<CardRecognitionScreen>
       ),
     );
   }
+}
+
+// ── Match Selection Screen ────────────────────────────────────────────────────
+
+class _MatchSelectionScreen extends StatelessWidget {
+  final String scanId;
+  final List<Map<String, dynamic>> matches;
+  final Map<String, dynamic> extracted;
+
+  const _MatchSelectionScreen({
+    required this.scanId,
+    required this.matches,
+    required this.extracted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final detectedName = extracted['card_name'] ?? extracted['player_name'] ?? 'Unknown';
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.surface,
+        title: const Text('Confirm Card'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context, null),
+        ),
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: AppColors.surfaceDark,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('AI IDENTIFIED', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 1)),
+                const SizedBox(height: 4),
+                Text(detectedName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                if (extracted['card_number'] != null)
+                  Text('#\${extracted[\'card_number\']}  \${extracted[\'set_name\'] ?? \'\'}',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              matches.length == 1 ? 'Is this the right card?' : 'Select the correct card:',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: matches.length,
+              itemBuilder: (context, i) {
+                final m = matches[i];
+                final confidence = ((m['confidence'] as num?)?.toDouble() ?? 0.0);
+                final pct = (confidence * 100).toStringAsFixed(0);
+                final reasons = (m['match_reasons'] as List<dynamic>?)?.cast<String>() ?? [];
+                final imageUrl = m['image_url'] as String?;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => Navigator.pop(context, m),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: imageUrl != null
+                                ? Image.network(imageUrl, width: 56, height: 78, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => _placeholder())
+                                : _placeholder(),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        m['card_name'] ?? m['player_name'] ?? 'Unknown',
+                                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary),
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: confidence >= 0.8 ? AppColors.success.withOpacity(0.15) : AppColors.warning.withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text('$pct%',
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                                              color: confidence >= 0.8 ? AppColors.success : AppColors.warning)),
+                                    ),
+                                  ],
+                                ),
+                                if (m['card_number'] != null)
+                                  Text('#\${m[\'card_number\']}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                if (m['set_name'] != null)
+                                  Text(m['set_name'], style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                if (m['latest_price'] != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text('\$\${(m[\'latest_price\'] as num).toStringAsFixed(2)}',
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accent)),
+                                ],
+                                if (reasons.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 4, runSpacing: 4,
+                                    children: reasons.map((r) => Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(4)),
+                                      child: Text(r, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                    )).toList(),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, color: AppColors.textLight),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, null),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  side: const BorderSide(color: AppColors.textLight),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text('None of these — Enter Manually'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder() => Container(
+    width: 56, height: 78,
+    decoration: BoxDecoration(color: AppColors.surfaceDark, borderRadius: BorderRadius.circular(6)),
+    child: const Icon(Icons.style, color: AppColors.textLight, size: 28),
+  );
 }
 
 // ── Scan mode enum ────────────────────────────────────────────────────────────

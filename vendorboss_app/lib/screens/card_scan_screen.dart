@@ -303,6 +303,8 @@ class ScannedCardData {
   final String? gradingCompany;
   final String? grade;
   final double? confidence;  // 0.0 – 1.0, how certain the AI is
+  final String? scanId;       // backend scan_id for confirmation call
+  final String? productId;    // matched product_id from catalog
 
   const ScannedCardData({
     required this.cardName,
@@ -317,6 +319,8 @@ class ScannedCardData {
     this.gradingCompany,
     this.grade,
     this.confidence,
+    this.scanId,
+    this.productId,
   });
 
   factory ScannedCardData.fromJson(Map<String, dynamic> json) =>
@@ -333,5 +337,7 @@ class ScannedCardData {
         gradingCompany: json['grading_company'],
         grade:         json['grade'],
         confidence:    (json['confidence'] as num?)?.toDouble(),
+        scanId:        json['scan_id'],
+        productId:     json['product_id'],
       );
 }
