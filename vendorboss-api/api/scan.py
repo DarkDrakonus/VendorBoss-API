@@ -16,9 +16,13 @@ import json
 import uuid
 import os
 
+import logging
+import traceback
 import models
 from database import get_db
 from auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scan", tags=["Scan"])
 
@@ -113,7 +117,7 @@ def extract_card_data(image_bytes: bytes, media_type: str) -> ExtractedCardData:
     image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
 
     message = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-5",
         max_tokens=1024,
         messages=[
             {
@@ -285,6 +289,7 @@ async def scan_card(
             detail="Could not parse card data from image — try a clearer photo"
         )
     except Exception as e:
+        logger.error("AI extraction failed: %s\n%s", str(e), traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"AI extraction failed: {str(e)}")
 
     # Search catalog for matches
