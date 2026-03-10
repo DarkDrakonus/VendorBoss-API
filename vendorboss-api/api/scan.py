@@ -113,7 +113,13 @@ Be precise with card numbers and names. If you cannot determine card_type, use n
 
 def extract_card_data(image_bytes: bytes, media_type: str) -> ExtractedCardData:
     """Send image to Gemini and extract card details."""
-    image_part = {"mime_type": media_type, "data": image_bytes}
+    from google.genai import types as genai_types
+    import base64
+
+    image_part = genai_types.Part.from_bytes(
+        data=image_bytes,
+        mime_type=media_type,
+    )
 
     response = _gemini_client.models.generate_content(
         model="gemini-2.0-flash",
