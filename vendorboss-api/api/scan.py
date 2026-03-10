@@ -10,7 +10,7 @@ from sqlalchemy import or_, func
 from typing import Optional, List
 from decimal import Decimal
 from pydantic import BaseModel
-import google.generativeai as genai
+import google.genai as genai
 import json
 import uuid
 import os
@@ -26,8 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scan", tags=["Scan"])
 
 # ── Gemini client ─────────────────────────────────────────────────────────────
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-_gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+_gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -116,9 +115,9 @@ def extract_card_data(image_bytes: bytes, media_type: str) -> ExtractedCardData:
     """Send image to Gemini and extract card details."""
     image_part = {"mime_type": media_type, "data": image_bytes}
 
-    response = _gemini_model.generate_content(
-        [image_part, EXTRACTION_PROMPT],
-        generation_config={"temperature": 0.1, "max_output_tokens": 1024},
+    response = _gemini_client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=[image_part, EXTRACTION_PROMPT],
     )
 
     raw = response.text.strip()
