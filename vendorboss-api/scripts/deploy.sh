@@ -7,7 +7,7 @@ set -e
 
 APP_DIR="/home/drakonus/vendorboss-api"
 VENV="$APP_DIR/venv"
-SERVICE="vendorboss-api"
+SERVICE="vendorboss"
 
 echo "🚀 Starting VendorBoss API deployment..."
 
