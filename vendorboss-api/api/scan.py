@@ -1,23 +1,22 @@
 """
 Scan endpoints
 AI-powered card identification from images
-Uses Claude claude-sonnet-4-20250514 vision to extract card details,
+Uses Google Gemini vision to extract card details,
 then searches the catalog for matches with confidence scoring.
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from typing import Optional, List
 from decimal import Decimal
 from pydantic import BaseModel
-import anthropic
-import base64
+import google.generativeai as genai
 import json
 import uuid
 import os
-
 import logging
 import traceback
+
 import models
 from database import get_db
 from auth import get_current_user
@@ -26,8 +25,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scan", tags=["Scan"])
 
-# ── Anthropic client ──────────────────────────────────────────────────────────
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# ── Gemini client ─────────────────────────────────────────────────────────────
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+_gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -113,34 +113,15 @@ Be precise with card numbers and names. If you cannot determine card_type, use n
 
 
 def extract_card_data(image_bytes: bytes, media_type: str) -> ExtractedCardData:
-    """Send image to Claude and extract card details."""
-    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+    """Send image to Gemini and extract card details."""
+    image_part = {"mime_type": media_type, "data": image_bytes}
 
-    message = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1024,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_b64,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": EXTRACTION_PROMPT
-                    }
-                ],
-            }
-        ],
+    response = _gemini_model.generate_content(
+        [image_part, EXTRACTION_PROMPT],
+        generation_config={"temperature": 0.1, "max_output_tokens": 1024},
     )
 
-    raw = message.content[0].text.strip()
+    raw = response.text.strip()
 
     # Strip markdown code fences if present
     if raw.startswith("```"):
